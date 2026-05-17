@@ -11,7 +11,7 @@ Truth Shield is a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 
 - **Self-consistency pre-screen** — flags claims Claude is internally uncertain about before verification
 - **Isolated-context verification** — breaks confirmation bias by reading evidence without the original claim
 - **DepScope package checking** — catches hallucinated package names across 19 ecosystems
-- **MiniCheck fact-checker** — purpose-built verification model that outperforms GPT-4 at fact-checking
+- **MiniCheck fact-checker** — purpose-built verification model (matches GPT-4 on grounding benchmarks)
 - **Multi-judge arbitration** — FACTS-style 3-judge panel resolves conflicts without single-model bias
 - **Stop hook enforcement** — deterministic enforcement layer outside Claude's context window
 
@@ -115,7 +115,7 @@ useMemo guarantees the cached value is never stale.
 [CONTRADICTED — React docs: "You may rely on useMemo as a performance
 optimization, not as a semantic guarantee."]
 
-[shield: 4/5 claims verified, 1 corrected | v3]
+[shield: 4/5 verified, 1 contradicted | v3]
 ```
 
 Turn it off when you're done:
@@ -155,7 +155,7 @@ Install additional MCP servers, models, and hooks to unlock more tiers. Each one
 | **fact-mcp** (MCP) | Cached verifications — instant repeat lookups |
 | **Graphiti** (MCP) | Entity relationships, temporal facts |
 | **Knowledge Graph** (MCP) | Code structure — call chains, symbol maps, dependency trees |
-| **MiniCheck** (Ollama) | External fact-checker — purpose-built verification model |
+| **MiniCheck** (Ollama) | External fact-checker — trained specifically for document-claim verification |
 | **Local LLM proxy** | Multi-model cross-check + self-consistency sampling |
 | **LLM Council** (skill) | FACTS-style multi-judge conflict resolution |
 | **Stop hook** (hook) | Deterministic enforcement — ensures verification runs in shield-on mode |

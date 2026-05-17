@@ -85,7 +85,7 @@ Add to your MCP config:
 
 ### Research basis
 
-Based on the [DepScope hallucinations dataset](https://github.com/BAS-More/depscope-hallucinations-dataset) which documents how LLMs fabricate package names across ecosystems.
+Based on the [DepScope project](https://github.com/nicholasgriffintn/depscope-mcp) which checks package existence, and the [hallucinations dataset](https://github.com/BAS-More/depscope-hallucinations-dataset) documenting how LLMs fabricate package names.
 
 ---
 
@@ -97,9 +97,9 @@ This is what enables the **learning loop** — the feature where Truth Shield ge
 
 ### Install
 
-See: [Total Recall MCP](https://github.com/pchaganti/gx-total-recall) for full documentation.
+Total Recall provides persistent memory for Claude Code sessions.
 
-Add to your MCP config:
+Add to your MCP config (check [npm](https://www.npmjs.com/search?q=total-recall-mcp) for the latest package name):
 
 ```json
 {
@@ -126,9 +126,9 @@ A tiered caching layer. Previously verified claims get instant lookups instead o
 
 ### Install
 
-See: [fact-mcp](https://github.com/pchaganti/gx-fact-mcp) for full documentation.
+fact-mcp provides tiered caching for verified claims.
 
-Add to your MCP config:
+Add to your MCP config (check [npm](https://www.npmjs.com/search?q=fact-mcp) for the latest package name):
 
 ```json
 {
@@ -191,7 +191,7 @@ Structural code analysis — not text search, but actual call graphs, dependency
 
 ### Install
 
-See: [Knowledge Graph MCP](https://github.com/nicholasgriffintn/knowledge-graph-mcp) for full documentation.
+The Knowledge Graph MCP provides structural code analysis. Install a compatible knowledge-graph MCP server for your codebase.
 
 Add to your MCP config:
 
@@ -237,13 +237,13 @@ If no proxy is running, Tier 7 silently skips (connection refused is handled gra
 
 ### v3 upgrade: Self-consistency sampling
 
-v3 queries 3 models instead of 1. If all 3 agree, confidence is high. If they diverge, the claim is flagged as CONFLICTED. This is based on [semantic entropy research](https://github.com/BAS-More/LLM-Hallucination-Detection-Script) (Nature 2024) — divergent outputs from the same prompt indicate hallucination.
+v3 queries 3 models instead of 1. If all 3 agree, confidence is high. If they diverge, the claim is flagged as CONFLICTED. This is based on semantic entropy research ([Nature 2024](https://www.nature.com/articles/s41586-024-07421-0)) — divergent outputs from the same prompt indicate hallucination.
 
 ---
 
 ## Tier 8: MiniCheck external fact-checker (v3)
 
-A purpose-built fact-verification model from EMNLP 2024. Unlike general LLMs, MiniCheck was specifically trained to judge whether a claim is supported by a document. It outperforms GPT-4 at fact-checking tasks.
+A purpose-built fact-verification model from EMNLP 2024. Unlike general LLMs, MiniCheck was specifically trained to judge whether a claim is supported by a document. On grounding-check benchmarks, it matches or exceeds GPT-4 for document-claim verification.
 
 ### Install
 
@@ -267,7 +267,7 @@ Ollama runs at `http://localhost:11434` by default. No MCP config needed — Tru
 
 ### Research basis
 
-Based on [MiniCheck](https://github.com/BAS-More/MiniCheck) (EMNLP 2024). See also [UQLM](https://github.com/BAS-More/uqlm) for uncertainty quantification approaches and [LLM_Check](https://github.com/BAS-More/LLM_Check_Hallucination_Detection) for hallucination detection patterns.
+Based on [MiniCheck](https://github.com/Liyan06/MiniCheck) (EMNLP 2024). See also [UQLM](https://github.com/cvs-health/uqlm) for uncertainty quantification and the [research forks](https://github.com/BAS-More) for additional hallucination detection patterns.
 
 ---
 
@@ -311,26 +311,36 @@ New-Item -ItemType Directory -Path "$env:USERPROFILE\.claude\hooks" -Force | Out
 Copy-Item hooks\truth-shield-enforcer.js "$env:USERPROFILE\.claude\hooks\"
 ```
 
-2. Add to your `~/.claude/hooks.json`:
+2. Add to your `~/.claude/settings.json` (or `.claude/settings.json` in your project):
 
 ```json
 {
   "hooks": {
     "Stop": [
       {
-        "command": "node ~/.claude/hooks/truth-shield-enforcer.js",
-        "description": "Truth Shield enforcement — ensures verification runs in shield-on mode"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["~/.claude/hooks/truth-shield-enforcer.js"],
+            "timeout": 10
+          }
+        ]
       }
     ]
   }
 }
 ```
 
+On Windows, use the full path: `"command": "node"`, `"args": ["C:\\Users\\YOU\\.claude\\hooks\\truth-shield-enforcer.js"]`
+
 ### What it does
 
+- Reads hook input from stdin (Claude Code's standard hook protocol)
 - Tracks shield-on/off state in `~/.claude/truth-shield-state.json`
-- On every Stop event, checks if verification tools were used
-- If shield-on is active and no verification occurred, returns non-zero exit to trigger re-verification
+- On every Stop event, reads the session transcript to check if verification tools were used
+- If shield-on is active and no verification occurred, exits with code 2 (block) and tells Claude to verify
+- Uses `stop_hook_active` flag to prevent infinite loops
 - Deterministic — cannot be overridden by prompt content
 
 ---

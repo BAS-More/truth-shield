@@ -65,12 +65,14 @@ Categorise each claim:
 |---|---|---|
 | **Code symbol** | "Function X exists at line Y" | 2 → 3 |
 | **Code structure** | "Function X calls function Y" | 2 (cypher) |
-| **Package/library name** | "Install lodash-utils" | 3.5 (DepScope) → 4 |
+| **Package/library name** | "Install lodash-utils" | 3.5 (package check) → 4 |
 | **API/library behaviour** | "useEffect runs after render" | 4 → 6 |
 | **Past decision** | "We chose JWT over sessions" | 1 → 5 |
 | **Entity relationship** | "Service A depends on Service B" | 5 → 2 |
 | **General knowledge** | "Python was created in 1991" | 6 → 7 |
 | **Current state** | "Server runs on port 3001" | 3 (Read config) |
+
+The "Best tiers" column shows where to START — skip tiers that are obviously irrelevant (e.g., don't check Knowledge Graph for a general knowledge claim). Always fall through to subsequent tiers if the best tier returns UNVERIFIED.
 
 
 ## Step 2: Self-consistency pre-screen (v3)
@@ -98,7 +100,17 @@ This is NOT a verification source — it's a triage step. Claude's self-assessme
 
 ## Step 3: Verification pipeline
 
-For each claim, work through tiers until you get a verdict. Stop at the first VERIFIED or CONTRADICTED result.
+For each claim, work through tiers in order until you get a verdict:
+
+- **VERIFIED or CONTRADICTED** → stop checking this claim (verdict found)
+- **UNVERIFIED** → continue to next tier (no evidence yet)
+- **CONFLICTED** → stop, escalate to Tier 9
+
+**Exception — Tier 8 (MiniCheck):** If available, run MiniCheck as a second opinion on VERIFIED claims from tiers 4-6 (library docs, web search). If MiniCheck disagrees, escalate to Tier 9. Skip MiniCheck for claims verified by local files (Tier 3) or stored knowledge (Tier 1) — those are ground truth.
+
+**If all tiers exhausted with no verdict** → UNVERIFIED (not UNCERTAIN — self-consistency flags are triage hints, not final verdicts).
+
+**If zero factual claims extracted** → report "No factual claims found — nothing to verify."
 
 **v3 rule: Isolated context for verification.** When checking a claim, do NOT let the original response influence your interpretation of evidence. Read the source material as if you'd never seen the claim. This breaks confirmation bias — the #1 reason v2 missed contradictions.
 
@@ -168,26 +180,34 @@ Always available — no ToolSearch needed.
 **Always quote evidence.** "VERIFIED — src/auth.ts:42: `export function validateToken(...)`" — not just "checked the file."
 
 
-### Tier 3.5 — DepScope package verification (v3)
+### Tier 3.5 — Package existence verification (v3)
 
 For any claim that references a package, library, or module by name — especially in install commands, import statements, or dependency recommendations.
 
+Hallucinated package names are a top-5 hallucination category. Users who `npm install` a fake name risk installing malware that squatted it.
+
 ```
-Load: ToolSearch query "+depscope"
+Method A — DepScope MCP (if installed):
+  Load: ToolSearch query "+depscope"
+  Call the package-check tool for the claimed package + ecosystem.
+  EXISTS → continue (package is real)
+  NOT FOUND → CONTRADICTED with "Package does not exist in <ecosystem>"
 
-Call: depscope check_package
-  package_name: <the claimed package>
-  ecosystem: <npm|pypi|cargo|go|maven|etc.>
+Method B — WebSearch fallback (if no DepScope):
+  Load: ToolSearch query "select:WebSearch"
+  Call: WebSearch
+    query: "<package-name>" site:npmjs.com  (or pypi.org, crates.io, etc.)
+  
+  Registry page found → package exists, continue
+  No results → CONTRADICTED — "No registry listing found for '<name>'.
+    This may be a hallucinated package name."
 
-EXISTS → continue (package is real, verify other claims about it)
-NOT FOUND → CONTRADICTED — "Package '<name>' does not exist in <ecosystem>.
-  This may be a hallucinated package name (slopsquatting risk).
-  Similar real packages: <suggestions from DepScope>"
+Method C — Context7 fallback:
+  If the package is a well-known library, Context7 can confirm it exists
+  via resolve-library-id. No match → suspicious but not definitive.
 ```
 
-**Why this matters:** Hallucinated package names are a top-5 hallucination category. Users who `npm install` a fake package name risk installing malware that squatted the name. DepScope checks existence across 19 ecosystems.
-
-If DepScope is unavailable, fall back to WebSearch: search `"<package-name>" site:npmjs.com` (or pypi.org, crates.io, etc.).
+**Always check package names.** Even if the rest of the claim is verified, a wrong package name can cause real harm (slopsquatting/typosquatting attacks).
 
 
 ### Tier 4 — Context7 (live documentation)
@@ -210,6 +230,12 @@ Load: ToolSearch query "select:mcp__graphiti__search_memory_facts,mcp__graphiti_
 
 Relationships: mcp__graphiti__search_memory_facts  query: <claim>
 Entities: mcp__graphiti__search_nodes  query: <entity>
+
+Interpreting results:
+  Fact found + matches claim → VERIFIED with the stored fact as evidence
+  Fact found + contradicts claim → CONTRADICTED with the stored fact
+  Fact found but temporal metadata shows it's outdated → UNVERIFIED (stale data)
+  No matching facts or entities → UNVERIFIED (not in relationship memory)
 ```
 
 
@@ -238,8 +264,8 @@ Load: ToolSearch query "select:WebFetch"
 
 Step A — Cross-model check:
   Call: WebFetch
-    url: "http://localhost:YOUR_PORT/v1/chat/completions"
-    headers: {"Content-Type":"application/json","Authorization":"Bearer YOUR_TOKEN"}
+    url: "http://localhost:20128/v1/chat/completions"
+    headers: {"Content-Type":"application/json","Authorization":"Bearer 9router"}
     body: {
       "model": "gpt-4o",
       "messages": [{"role":"user","content":"Is this true or false? <claim>. Cite your source."}],
@@ -247,7 +273,7 @@ Step A — Cross-model check:
       "temperature": 0.0
     }
 
-  Default: http://localhost:20128 with "Bearer 9router"
+  These are defaults — change URL/auth to match your proxy.
   See ENHANCE.md Tier 7 for configuration.
 
 Step B — Self-consistency (if proxy supports multiple models):
@@ -263,7 +289,7 @@ If no proxy running → skip tier, note "multi-model unavailable"
 
 ### Tier 8 — MiniCheck external fact-checker (v3)
 
-A purpose-built fact-verification model. Unlike LLMs that generate plausible text, MiniCheck was trained specifically to judge `(document, claim) → true/false`. It outperforms GPT-4 at fact-checking tasks (EMNLP 2024).
+A purpose-built fact-verification model (EMNLP 2024). Unlike LLMs that generate plausible text, MiniCheck was trained specifically to judge `(document, claim) → true/false`. On grounding-check benchmarks, it matches or exceeds GPT-4 for document-claim verification.
 
 ```
 Load: ToolSearch query "select:WebFetch"
@@ -400,7 +426,7 @@ Tiers used: Total Recall, Knowledge Graph, Grep, DepScope, Context7, WebSearch
 ### Shield On footer
 
 ```
-[shield: 5/7 verified, 2 corrected | tiers: 1,2,3,3.5,4,6 | v3]
+[shield: 5/7 verified, 2 contradicted | tiers: 1,2,3,3.5,4,6 | v3]
 ```
 
 ### Zero-verified report
