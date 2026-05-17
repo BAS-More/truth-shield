@@ -35,7 +35,7 @@ Express 3.0 removed bundled middleware, not added listen().
 
 **Mac / Linux:**
 ```bash
-curl -sL https://raw.githubusercontent.com/BAS-More/truth-shield/master/install.sh | bash
+curl -sfL https://raw.githubusercontent.com/BAS-More/truth-shield/master/install.sh | bash
 ```
 
 **Windows (PowerShell):**
@@ -174,7 +174,7 @@ Without Total Recall, corrections are reported but not remembered across session
 |--------|-------------|
 | `verify this` | Full verification of the previous response |
 | `truth-check this` / `fact-check this` | Same as above |
-| `shield this` / `truth shield` / `is this true` | Same as above |
+| `shield this` / `truth shield` / `truth-shield` / `is this true` | Same as above |
 | `check your work` | Full verification |
 | `shield on` | Continuous mode — every response verified |
 | `shield off` | Stop continuous mode |
