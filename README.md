@@ -2,7 +2,9 @@
 
 Claude sometimes states things confidently that turn out to be wrong. It invents function names, gets API details outdated, and presents guesses as facts. You have no way to tell which parts of a response are reliable and which are fabricated — unless you check every claim yourself.
 
-Truth Shield is a Claude Code skill that checks for you. It verifies Claude's factual claims against real sources — your actual code files, live documentation, web search results — and flags anything it can't confirm. You get a clear report showing what's grounded, what's unverified, and what's outright wrong.
+Truth Shield is a Claude Code skill that checks for you. It verifies Claude's factual claims against up to 8 real sources — your code files, stored knowledge, live documentation, web search results, and more — and flags anything it can't confirm. You get a clear report showing what's grounded, what's unverified, and what's outright wrong.
+
+Every contradiction is persisted to memory systems so the same mistake is never repeated.
 
 ---
 
@@ -46,28 +48,7 @@ You already have a Claude response and want to know which claims are solid. Just
 verify this
 ```
 
-**Example:**
-
-> **You:** What port does Express default to?
->
-> **Claude:** Express defaults to port 3000. The `app.listen()` method was added in Express 3.0 and accepts a callback as its second argument.
->
-> **You:** verify this
-
-> **Truth Shield Report**
->
-> Claims checked: 3 · Verified: 2 · Contradicted: 1
->
-> | # | Claim | Verdict | Evidence |
-> |---|---|---|---|
-> | 1 | Express defaults to port 3000 | VERIFIED | Express docs: "the app.listen() method binds and listens... if port is omitted or 0, the OS assigns an arbitrary port" — common convention is 3000 per getting-started guide |
-> | 2 | app.listen() added in Express 3.0 | CONTRADICTED | Express changelog shows app.listen() existed since Express 1.x. Express 3.0 removed bundled middleware, not added listen. |
-> | 3 | app.listen() accepts callback as second argument | VERIFIED | Express docs: "app.listen(port, callback)" — callback is the second parameter |
->
-> **Corrections**
-> - Claim 2: `app.listen()` has been part of Express since its earliest versions. Express 3.0 was a release that removed bundled middleware (like bodyParser), not one that added `listen()`.
->
-> **Confidence: 67%** — 1 claim was actively wrong and has been corrected above.
+Truth Shield extracts every factual claim, checks each against available sources, and produces a report.
 
 ### Mode 2: Shield On (continuous)
 
@@ -77,19 +58,7 @@ For high-stakes work — production deployments, client deliverables, documentat
 shield on
 ```
 
-From that point on, every Claude response is silently verified. You'll see inline markers on anything that doesn't check out:
-
-> **You:** shield on
->
-> **Claude:** Truth Shield active. All factual claims will be verified before presenting.
->
-> **You:** How does React's useMemo work?
->
-> **Claude:** `useMemo` caches the result of a computation between re-renders. It takes a function and a dependency array. React re-runs the function only when a dependency changes. It was introduced in React 16.8 alongside hooks. `useMemo` guarantees the cached value is never stale. [CONTRADICTED — React docs state: "You may rely on useMemo as a performance optimization, not as a semantic guarantee. React may choose to forget previously memoized values."]
->
-> [shield: 4/5 claims verified, 1 corrected]
-
-Turn it off when you're done:
+From that point on, every Claude response is silently verified. You'll see inline markers on anything that doesn't check out. Turn it off when you're done:
 
 ```
 shield off
@@ -106,10 +75,6 @@ are you sure useEffect runs before render?
 ```
 
 Truth Shield checks only the targeted claim and reports back with its source.
-
-> **Claude:** Checking that claim against React documentation...
->
-> **CONTRADICTED** — React docs state: "The function passed to useEffect will run after the render is committed to the screen." useEffect runs *after* render, not before. You may be thinking of `useLayoutEffect`, which fires synchronously after DOM mutations but before the browser paints.
 
 ---
 
@@ -142,21 +107,52 @@ Truth Shield checks only the targeted claim and reports back with its source.
 
 ---
 
-## What gets checked (and what doesn't)
+## 8 Verification Sources
 
-Truth Shield verifies **factual claims** — statements that are either true or false. It does NOT verify opinions, predictions, recommendations, creative writing, or subjective judgments.
+Truth Shield uses whatever tools Claude has access to in the current session. It checks sources in order of speed — cached and local sources first, expensive ones only when needed.
 
-### Verification capabilities depend on available tools
+| Tier | Source | What it checks | Tool required |
+|------|--------|----------------|---------------|
+| 0 | **fact-mcp cache** | Previously verified claims (instant lookup) | `fact-mcp` MCP |
+| 1 | **Total Recall** | Stored knowledge + past corrections | `total-recall` MCP |
+| 2 | **Knowledge Graph** | Code structure — execution flows, symbol relationships | `knowledge-graph` MCP |
+| 3 | **Local files** | Function names, file paths, line numbers, signatures | `Grep` + `Read` + `Glob` (always available) |
+| 4 | **Context7** | Library and API claims — checked against live documentation | `context7` MCP |
+| 5 | **Graphiti** | Entity relationships, temporal facts | `graphiti` MCP |
+| 6 | **WebSearch** | General knowledge, version numbers, release dates | `WebSearch` tool |
+| 7 | **9Router multi-model** | Cross-check with a different LLM via local proxy | 9Router running on `:20128` |
+| 8 | **LLM Council** | Conflict resolution — fires only when sources disagree | `llm-council` skill |
 
-| Tools available | What Truth Shield can verify |
-|---|---|
-| **Grep + Read + Glob** (always available) | Code claims — function names, file paths, line numbers, signatures |
-| **+ Context7 MCP** | Library and API claims — checked against live documentation |
+If a tool isn't available, Truth Shield tells you what it couldn't check rather than silently skipping it. The report always shows which sources were used and which were unavailable.
+
+### Graceful degradation
+
+Truth Shield works with any subset of these sources. With only Grep/Read/Glob (always available), it verifies code claims. Each additional source expands what can be checked:
+
+| Setup | What you get |
+|-------|--------------|
+| **Grep + Read + Glob only** | Code claims verified — function names, file paths, signatures |
+| **+ Total Recall** | Past corrections recalled — same lie never repeated |
+| **+ Knowledge Graph** | Code structure claims — execution flows, dependencies |
+| **+ Context7** | Library/API claims against live documentation |
+| **+ fact-mcp** | Instant cache hits for previously checked claims |
+| **+ Graphiti** | Entity relationship and temporal fact verification |
 | **+ WebSearch** | General knowledge, version numbers, release dates |
-| **+ Second model** (via multi-provider setup) | Cross-model disagreement detection |
-| **None of the above** | All claims marked UNVERIFIED — the report is honest about this |
+| **+ 9Router** | Cross-model disagreement detection |
+| **+ LLM Council** | Conflict resolution when sources disagree |
+| **All unavailable** | All claims marked UNVERIFIED — report is honest about this |
 
-Truth Shield uses whatever tools Claude has access to in the current session. If a tool isn't available, Truth Shield tells you what it couldn't check rather than silently skipping it.
+---
+
+## Learning loop
+
+When Truth Shield finds a contradiction, it doesn't just report it — it persists the correction so the same mistake is never repeated:
+
+1. **Total Recall** — stores the correction with triggers so it's recalled whenever the topic comes up
+2. **fact-mcp** — caches the correct answer for instant future lookups
+3. **Graphiti** — adds the correction to relationship memory for cross-referencing
+
+This means Truth Shield gets better over time. The first time Claude claims Express defaults to port 8080, it catches and corrects it. The second time the topic comes up, the correction is recalled from memory before Claude can repeat the mistake.
 
 ---
 
@@ -164,7 +160,7 @@ Truth Shield uses whatever tools Claude has access to in the current session. If
 
 | Rating | Meaning |
 |---|---|
-| **VERIFIED** | Confirmed by at least one real source (file content, live docs, search result). Evidence is quoted. |
+| **VERIFIED** | Confirmed by at least one real source. Evidence is quoted with the source named. |
 | **UNVERIFIED** | Could not confirm or deny. No source available, or claim is outside what the available tools can check. Not necessarily wrong — just not confirmed. |
 | **CONTRADICTED** | A source directly contradicts the claim. The correction and source are provided. |
 
@@ -177,9 +173,10 @@ Truth Shield uses whatever tools Claude has access to in the current session. If
 Truth Shield reduces hallucination risk. It does not eliminate it.
 
 - **Sources can be wrong.** Docs can be outdated. Search results can be inaccurate. Truth Shield is evidence-based, not infallible.
-- **UNVERIFIED ≠ wrong.** It means "I couldn't find evidence either way." Many true statements will be UNVERIFIED simply because no source was available to check.
+- **UNVERIFIED != wrong.** It means "I couldn't find evidence either way." Many true statements will be UNVERIFIED simply because no source was available to check.
 - **Passive mode is slower.** Every response goes through verification. Use it for high-stakes work, not casual exploration.
 - **It cannot verify predictions or opinions.** "This will scale to 1M users" and "React is better than Vue" are outside its scope.
+- **Learning loop requires MCP servers.** Corrections are only persisted when Total Recall, Graphiti, or fact-mcp are available. Without them, corrections are reported but not remembered.
 
 The goal is to move from "Claude said it confidently" to "Claude said it, and here's the evidence." That's a meaningful improvement, not a guarantee.
 
