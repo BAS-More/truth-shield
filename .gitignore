@@ -1,0 +1,21 @@
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Node (precautionary — this repo has no code)
+node_modules/
+
+# Python (precautionary)
+__pycache__/
+*.pyc
