@@ -1,11 +1,9 @@
 // Truth Shield Enforcer — Claude Code Hook
-// Runs as a PostToolUse / Stop hook to enforce verification.
+// Runs as a Stop hook to enforce verification in shield-on mode.
 //
 // Install: Add to ~/.claude/hooks.json (see ENHANCE.md for full instructions)
 //
 // What it does:
-// - PostToolUse: After any tool that generates factual claims (WebSearch, Read, etc.),
-//   reminds Claude to run verification before presenting results
 // - Stop: Before Claude's final response reaches the user, checks if verification
 //   was performed when "shield on" mode is active
 //

@@ -22,7 +22,10 @@ Tier numbers match the SKILL.md pipeline — the same numbers you see in verific
 | 8 | **MiniCheck** | External fact-checking model (EMNLP 2024) | 5 minutes |
 | 9 | **LLM Council skill** | FACTS-style multi-judge conflict resolution | 5 minutes |
 
-Tier 3 (Grep/Read/Glob) and Tier 6 (WebSearch) are built into Claude Code — no install needed.
+Tiers 3 (Grep/Read/Glob) and 6 (WebSearch) are built into Claude Code — no install needed:
+
+| 3 | **Grep/Read/Glob** | Local file verification — code ground truth | Built-in |
+| 6 | **WebSearch** | General knowledge — dates, versions, facts | Built-in |
 
 ---
 
@@ -274,14 +277,16 @@ When verification sources disagree, the Multi-Judge Council convenes multiple mo
 
 ### Install
 
-The LLM Council is a separate Claude Code skill. Install it from [claude-skills-llm-council](https://github.com/aiwithremy/claude-skills-llm-council):
+The LLM Council is a separate Claude Code skill. Clone it from [claude-skills-llm-council](https://github.com/aiwithremy/claude-skills-llm-council) and install:
 
 ```bash
 # Mac / Linux
-cp SKILL.md ~/.claude/skills/llm-council.md
+git clone https://github.com/aiwithremy/claude-skills-llm-council.git
+cp claude-skills-llm-council/SKILL.md ~/.claude/skills/llm-council.md
 
 # Windows
-Copy-Item SKILL.md "$env:USERPROFILE\.claude\skills\llm-council.md"
+git clone https://github.com/aiwithremy/claude-skills-llm-council.git
+Copy-Item claude-skills-llm-council\SKILL.md "$env:USERPROFILE\.claude\skills\llm-council.md"
 ```
 
 If the LLM Council skill is not installed, Truth Shield falls back to multi-model arbitration via the proxy (Tier 7), or presents both positions to you directly.

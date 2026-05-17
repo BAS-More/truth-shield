@@ -160,7 +160,7 @@ Install additional MCP servers, models, and hooks to unlock more tiers. Each one
 | **LLM Council** (skill) | FACTS-style multi-judge conflict resolution |
 | **Stop hook** (hook) | Deterministic enforcement — ensures verification runs in shield-on mode |
 
-With all sources connected, Truth Shield checks claims across **10 tiers** — from instant cache lookups to multi-judge arbitration.
+With all sources connected, Truth Shield checks claims across **11 tiers** (0–9 plus 3.5) — from instant cache lookups to multi-judge arbitration.
 
 ---
 
