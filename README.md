@@ -1,184 +1,236 @@
 # Truth Shield
 
-Claude sometimes states things confidently that turn out to be wrong. It invents function names, gets API details outdated, and presents guesses as facts. You have no way to tell which parts of a response are reliable and which are fabricated — unless you check every claim yourself.
+**Stop Claude from lying to you.**
 
-Truth Shield is a Claude Code skill that checks for you. It verifies Claude's factual claims against up to 8 real sources — your code files, stored knowledge, live documentation, web search results, and more — and flags anything it can't confirm. You get a clear report showing what's grounded, what's unverified, and what's outright wrong.
+Claude states things confidently that turn out to be wrong. It invents function names, hallucinates API parameters, gets version numbers outdated, and presents guesses as facts. You have no way to tell which parts of a response are reliable and which are fabricated — unless you check every claim yourself.
 
-Every contradiction is persisted to memory systems so the same mistake is never repeated.
+Truth Shield is a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that does the checking for you. It verifies every factual claim against real sources — your actual code files, live documentation, web search results — and flags anything it can't confirm.
+
+```
+You: What port does Express default to?
+
+Claude: Express defaults to port 3000. The app.listen() method
+was added in Express 3.0 and accepts a callback as its second argument.
+
+You: verify this
+
+Truth Shield Report
+Claims checked: 3 · Verified: 2 · Contradicted: 1
+
+| # | Claim                              | Verdict      | Evidence                              |
+|---|------------------------------------|--------------|---------------------------------------|
+| 1 | Express defaults to port 3000      | VERIFIED     | Context7: Express getting-started     |
+| 2 | app.listen() added in Express 3.0  | CONTRADICTED | Express changelog: existed since 1.x  |
+| 3 | Accepts callback as second arg     | VERIFIED     | Context7: app.listen(port, callback)  |
+
+Corrections: app.listen() has existed since Express 1.x.
+Express 3.0 removed bundled middleware, not added listen().
+```
 
 ---
 
-## Install
+## Install (30 seconds)
 
-### Mac / Linux
+### One-liner
 
+**Mac / Linux:**
 ```bash
-cp SKILL.md ~/.claude/skills/truth-shield.md
+curl -sL https://raw.githubusercontent.com/BAS-More/truth-shield/master/install.sh | bash
 ```
 
-### Windows (PowerShell)
-
+**Windows (PowerShell):**
 ```powershell
+irm https://raw.githubusercontent.com/BAS-More/truth-shield/master/install.ps1 | iex
+```
+
+### Manual install
+
+```bash
+# Mac / Linux
+cp SKILL.md ~/.claude/skills/truth-shield.md
+
+# Windows (PowerShell)
 Copy-Item SKILL.md "$env:USERPROFILE\.claude\skills\truth-shield.md"
 ```
 
-That's it. No config files to edit, no dependencies to install.
-
 ### Verify it works
 
-After installing, open a Claude Code session and type:
+Open Claude Code and type:
 
 ```
 truth-shield: are you active?
 ```
 
-Claude should acknowledge that Truth Shield is available and explain its three modes. If it doesn't, check that the file landed in the right directory.
-
 ---
 
 ## How to use it
 
-Truth Shield has three modes. Pick the one that fits your situation.
-
-### Mode 1: Verify After
-
-You already have a Claude response and want to know which claims are solid. Just type:
+### Say "verify this" after any response
 
 ```
-verify this
+You: How does React's useMemo work?
+Claude: [responds with claims about useMemo]
+You: verify this
 ```
 
-Truth Shield extracts every factual claim, checks each against available sources, and produces a report.
+Truth Shield extracts every factual claim, checks each one, and gives you a report showing what's real and what's not.
 
-### Mode 2: Shield On (continuous)
-
-For high-stakes work — production deployments, client deliverables, documentation — where you need every response checked before you see it.
+### Turn on continuous mode for high-stakes work
 
 ```
 shield on
 ```
 
-From that point on, every Claude response is silently verified. You'll see inline markers on anything that doesn't check out. Turn it off when you're done:
+Every response is now verified before you see it. Inline markers flag anything wrong:
+
+```
+useMemo guarantees the cached value is never stale.
+[CONTRADICTED — React docs: "You may rely on useMemo as a performance
+optimization, not as a semantic guarantee."]
+
+[shield: 4/5 claims verified, 1 corrected]
+```
+
+Turn it off when you're done:
 
 ```
 shield off
 ```
 
-**Note:** Shield-on mode adds verification time to every response. Use it for work where accuracy matters more than speed.
-
-### Mode 3: Spot Check
-
-Claude just said something specific and you want to check that one thing:
+### Spot-check a single claim
 
 ```
 are you sure useEffect runs before render?
 ```
 
-Truth Shield checks only the targeted claim and reports back with its source.
+---
+
+## What gets checked
+
+Out of the box, Truth Shield uses the tools every Claude Code session has:
+
+| Tool | What it verifies |
+|------|-----------------|
+| **Grep / Read / Glob** | Code claims — function names, file paths, line numbers, signatures |
+| **WebSearch** | General knowledge — dates, versions, people, facts |
+
+That covers the two most common hallucination categories: made-up code and wrong facts.
+
+### Optional: add more verification sources
+
+Install additional MCP servers to unlock more tiers. Each one makes Truth Shield more powerful. See **[ENHANCE.md](ENHANCE.md)** for setup instructions.
+
+| Add this MCP | What you gain |
+|-------------|--------------|
+| **Context7** | Live library docs — React, Express, Prisma, 9,000+ libraries |
+| **Total Recall** | Persistent memory — corrections survive across sessions (learning loop) |
+| **Graphiti** | Entity relationships, temporal facts |
+| **fact-mcp** | Cached verifications — instant repeat lookups |
+| **Knowledge Graph** | Code structure — call chains, symbol maps, dependency trees |
+
+With all sources connected, Truth Shield checks claims across **8 tiers** — from instant cache lookups to multi-model cross-verification.
 
 ---
 
-## Trigger phrases
+## Always-on mode
 
-### Always triggers
+Don't want to type "verify this" every time? Add this line to your `CLAUDE.md`:
 
-- `verify this`
-- `truth-check this`
-- `fact-check this`
-- `shield this`
-- `truth shield`
-- `is this true`
-- `check your work`
+```
+Always verify factual claims before presenting them using the truth-shield skill.
+```
 
-### Triggers when challenging a specific claim
+Put it in:
+- **One project:** `your-project/CLAUDE.md`
+- **All projects:** `~/.claude/CLAUDE.md`
 
-- `are you sure`
-- `really?`
-- `source?`
-- `prove it`
-- `how do you know`
-- `is that right`
-- `double-check that`
-
-### Continuous mode
-
-- `shield on` — start verifying every response
-- `shield off` — stop
-
----
-
-## 8 Verification Sources
-
-Truth Shield uses whatever tools Claude has access to in the current session. It checks sources in order of speed — cached and local sources first, expensive ones only when needed.
-
-| Tier | Source | What it checks | Tool required |
-|------|--------|----------------|---------------|
-| 0 | **fact-mcp cache** | Previously verified claims (instant lookup) | `fact-mcp` MCP |
-| 1 | **Total Recall** | Stored knowledge + past corrections | `total-recall` MCP |
-| 2 | **Knowledge Graph** | Code structure — execution flows, symbol relationships | `knowledge-graph` MCP |
-| 3 | **Local files** | Function names, file paths, line numbers, signatures | `Grep` + `Read` + `Glob` (always available) |
-| 4 | **Context7** | Library and API claims — checked against live documentation | `context7` MCP |
-| 5 | **Graphiti** | Entity relationships, temporal facts | `graphiti` MCP |
-| 6 | **WebSearch** | General knowledge, version numbers, release dates | `WebSearch` tool |
-| 7 | **9Router multi-model** | Cross-check with a different LLM via local proxy | 9Router running on `:20128` |
-| 8 | **LLM Council** | Conflict resolution — fires only when sources disagree | `llm-council` skill |
-
-If a tool isn't available, Truth Shield tells you what it couldn't check rather than silently skipping it. The report always shows which sources were used and which were unavailable.
-
-### Graceful degradation
-
-Truth Shield works with any subset of these sources. With only Grep/Read/Glob (always available), it verifies code claims. Each additional source expands what can be checked:
-
-| Setup | What you get |
-|-------|--------------|
-| **Grep + Read + Glob only** | Code claims verified — function names, file paths, signatures |
-| **+ Total Recall** | Past corrections recalled — same lie never repeated |
-| **+ Knowledge Graph** | Code structure claims — execution flows, dependencies |
-| **+ Context7** | Library/API claims against live documentation |
-| **+ fact-mcp** | Instant cache hits for previously checked claims |
-| **+ Graphiti** | Entity relationship and temporal fact verification |
-| **+ WebSearch** | General knowledge, version numbers, release dates |
-| **+ 9Router** | Cross-model disagreement detection |
-| **+ LLM Council** | Conflict resolution when sources disagree |
-| **All unavailable** | All claims marked UNVERIFIED — report is honest about this |
+Every response with factual claims gets verified automatically. No trigger phrase needed.
 
 ---
 
 ## Learning loop
 
-When Truth Shield finds a contradiction, it doesn't just report it — it persists the correction so the same mistake is never repeated:
+When Truth Shield finds a wrong claim and you have Total Recall installed, it doesn't just report the error — it **persists the correction** so the same mistake never happens again.
 
-1. **Total Recall** — stores the correction with triggers so it's recalled whenever the topic comes up
-2. **fact-mcp** — caches the correct answer for instant future lookups
-3. **Graphiti** — adds the correction to relationship memory for cross-referencing
+1. Claude claims "useEffect runs before render"
+2. Truth Shield checks Context7 docs, finds it runs **after** render
+3. The correction is stored in Total Recall with trigger phrases
+4. Next week, Claude tries to make the same claim
+5. Total Recall catches it instantly before verification even starts
 
-This means Truth Shield gets better over time. The first time Claude claims Express defaults to port 8080, it catches and corrects it. The second time the topic comes up, the correction is recalled from memory before Claude can repeat the mistake.
+Without Total Recall, corrections are reported but not remembered across sessions. The verification still works — you just won't get the persistence benefit.
+
+---
+
+## Trigger phrases
+
+| Phrase | What happens |
+|--------|-------------|
+| `verify this` | Full verification of the previous response |
+| `truth-check this` / `fact-check this` | Same as above |
+| `shield on` | Continuous mode — every response verified |
+| `shield off` | Stop continuous mode |
+| `are you sure...` | Spot-check a specific claim |
+| `really?` / `source?` / `prove it` | Spot-check the most recent claim |
+| `check your work` | Full verification |
 
 ---
 
 ## Confidence ratings
 
 | Rating | Meaning |
-|---|---|
-| **VERIFIED** | Confirmed by at least one real source. Evidence is quoted with the source named. |
-| **UNVERIFIED** | Could not confirm or deny. No source available, or claim is outside what the available tools can check. Not necessarily wrong — just not confirmed. |
-| **CONTRADICTED** | A source directly contradicts the claim. The correction and source are provided. |
+|--------|---------|
+| **VERIFIED** | Confirmed by a real source. Evidence quoted. |
+| **UNVERIFIED** | No source could confirm or deny. Not wrong — just unconfirmed. |
+| **CONTRADICTED** | A source directly contradicts the claim. Correction provided. |
 
-**Important:** Claude's own confidence is never treated as a source. A claim that Claude states with certainty is not more likely to be true. Truth Shield only marks claims VERIFIED when external evidence confirms them.
+**Claude's own confidence is never treated as a source.** A claim stated with certainty gets the same scrutiny as a hedged guess. The whole point is that confidence without evidence is worthless.
 
 ---
 
 ## Limitations
 
-Truth Shield reduces hallucination risk. It does not eliminate it.
-
-- **Sources can be wrong.** Docs can be outdated. Search results can be inaccurate. Truth Shield is evidence-based, not infallible.
-- **UNVERIFIED != wrong.** It means "I couldn't find evidence either way." Many true statements will be UNVERIFIED simply because no source was available to check.
-- **Passive mode is slower.** Every response goes through verification. Use it for high-stakes work, not casual exploration.
-- **It cannot verify predictions or opinions.** "This will scale to 1M users" and "React is better than Vue" are outside its scope.
-- **Learning loop requires MCP servers.** Corrections are only persisted when Total Recall, Graphiti, or fact-mcp are available. Without them, corrections are reported but not remembered.
+- **Sources can be wrong.** Docs can be outdated. Search results can be inaccurate.
+- **UNVERIFIED != wrong.** Many true things will be UNVERIFIED because no source was available.
+- **Shield-on mode is slower.** Every response goes through verification. Use for high-stakes work.
+- **Cannot verify opinions or predictions.** Only factual claims.
+- **Learning loop requires Total Recall MCP.** Without it, corrections are reported but not persisted.
 
 The goal is to move from "Claude said it confidently" to "Claude said it, and here's the evidence." That's a meaningful improvement, not a guarantee.
+
+---
+
+## Requirements
+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (any version with skills support)
+- That's it. No API keys, no dependencies, no config files.
+
+Optional MCP servers enhance verification — see [ENHANCE.md](ENHANCE.md).
+
+---
+
+## How it works (technical)
+
+Truth Shield is a single markdown file (`SKILL.md`) that Claude loads as a skill. It instructs Claude to:
+
+1. **Extract claims** — parse every factual statement from a response
+2. **Verify each claim** — check against available sources in tier order (fast/local first, slow/external last)
+3. **Score confidence** — VERIFIED, UNVERIFIED, or CONTRADICTED with quoted evidence
+4. **Persist corrections** — store wrong answers in memory so they're caught instantly next time
+5. **Report results** — table with every claim, its verdict, and the evidence
+
+No runtime dependencies. No external services required. No API keys. The skill file tells Claude what to do — Claude's existing tools do the actual checking.
+
+---
+
+## Contributing
+
+Found a hallucination pattern Truth Shield misses? Open an issue with:
+- What Claude said (the wrong claim)
+- What the truth is (with source)
+- Which verification tier should have caught it
+
+Pull requests welcome for improving claim extraction, adding verification patterns, or enhancing the output format.
 
 ---
 
