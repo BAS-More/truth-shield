@@ -32,7 +32,7 @@ User says "are you sure about X?" — checks that one claim only.
 ---
 
 
-## The 8 verification tiers
+## The verification tiers (0–8)
 
 Claims are checked in this order. Each tier is independent — if one is unavailable, skip it and try the next. Early tiers are fast and free; later tiers are slower but catch more.
 
@@ -225,13 +225,14 @@ Call: WebSearch
   query: <the claim phrased as a verification question>
   Example: "What year was Python created?" (not "Python was created in 1991")
 
-Look for multiple independent sources.
-Sources agree and match claim → VERIFIED, cite the sources
-Sources agree but contradict claim → CONTRADICTED, cite what sources say
+Look for multiple independent sources. **Require at least 2 agreeing sources before marking VERIFIED** — a single search result could be wrong, outdated, or adversarial.
+Two or more sources agree and match claim → VERIFIED, cite the sources
+Two or more sources agree but contradict claim → CONTRADICTED, cite what sources say
+Only one source found → UNVERIFIED, cite it but note "single source — verify independently"
 Sources disagree with each other → UNVERIFIED, present the disagreement
 ```
 
-**Never mark general knowledge VERIFIED on Claude's confidence alone.** Claude's confidence and accuracy are uncorrelated.
+**Never mark general knowledge VERIFIED on a single web source or on Claude's confidence alone.** Web results can be manipulated. Claude's confidence and accuracy are uncorrelated. When persisting WebSearch-only verdicts to the learning loop, use confidence 0.7 (not 0.9) to reflect the lower reliability.
 
 
 ### Tier 7 — 9Router multi-model cross-check
@@ -242,21 +243,24 @@ Query a different model family. The only check that catches training-data-wide b
 Load: ToolSearch query "select:WebFetch"
 
 Call: WebFetch
-  url: "http://localhost:20128/v1/chat/completions"
+  url: "http://localhost:YOUR_PORT/v1/chat/completions"
   method: POST
-  headers: {"Content-Type": "application/json", "Authorization": "Bearer 9router"}
+  headers: {"Content-Type": "application/json", "Authorization": "Bearer YOUR_TOKEN"}
   body: {
     "model": "gpt-4o",
     "messages": [{"role": "user", "content": "Is the following true or false? <claim>. State the answer and cite your source."}],
     "max_tokens": 300
   }
 
+  Default: http://localhost:20128 with "Bearer 9router" — change these to match your local proxy.
+  See ENHANCE.md Tier 7 for configuration instructions.
+
 Both models agree → increases confidence (not proof — both could share the error)
 Models disagree → flag as CONFLICTED, present both positions, escalate to Tier 8
 Second model says "I don't know" → no signal, skip
 ```
 
-9Router may not be running. If the request fails (connection refused), skip this tier and note "9Router unavailable" in the report.
+If no proxy is running, the request fails with connection refused. Skip this tier and note "multi-model cross-check unavailable" in the report.
 
 
 ### Tier 8 — LLM Council (conflict resolution)
@@ -392,22 +396,25 @@ Call: mcp__fact-mcp__fact_set
 
 ### Zero-verified report
 
+When claims cannot be verified (e.g., general knowledge with no WebSearch available and no relevant local files):
+
 ```
 ## Truth Shield Report
 
 Claims checked: 4 | Verified: 0 | Unverified: 4
 
-No verification tools were available. Tiers checked:
+Available tiers found no evidence for these claims:
+- Tier 3 (Grep/Read/Glob): checked — no relevant local files
 - Tier 0 (fact-mcp): unavailable
 - Tier 1 (Total Recall): unavailable
 - Tier 2 (Knowledge Graph): unavailable
-- Tier 3 (Grep/Read/Glob): unavailable
 - Tier 4 (Context7): unavailable
 - Tier 5 (Graphiti): unavailable
 - Tier 6 (WebSearch): unavailable
-- Tier 7 (9Router): unavailable
+- Tier 7 (multi-model): unavailable
 
-Trust nothing in this response without independent verification.
+UNVERIFIED does not mean wrong — it means no source was available to confirm.
+Verify these claims independently before relying on them.
 ```
 
 

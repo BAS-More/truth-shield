@@ -26,7 +26,7 @@ if [ -f "SKILL.md" ]; then
 else
     echo "  Downloading from GitHub ..."
     if command -v curl &> /dev/null; then
-        curl -sL "$REPO_URL" -o "$SKILL_FILE"
+        curl -sfL "$REPO_URL" -o "$SKILL_FILE"
     elif command -v wget &> /dev/null; then
         wget -q "$REPO_URL" -O "$SKILL_FILE"
     else

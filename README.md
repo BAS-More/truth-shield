@@ -47,19 +47,23 @@ irm https://raw.githubusercontent.com/BAS-More/truth-shield/master/install.ps1 |
 
 ```bash
 # Mac / Linux
+mkdir -p ~/.claude/skills
 cp SKILL.md ~/.claude/skills/truth-shield.md
 
 # Windows (PowerShell)
+New-Item -ItemType Directory -Path "$env:USERPROFILE\.claude\skills" -Force | Out-Null
 Copy-Item SKILL.md "$env:USERPROFILE\.claude\skills\truth-shield.md"
 ```
 
 ### Verify it works
 
-Open Claude Code and type:
+Open Claude Code, ask Claude any factual question, then type:
 
 ```
-truth-shield: are you active?
+verify this
 ```
+
+You should see a Truth Shield Report with a table of claims, verdicts, and evidence.
 
 ---
 
@@ -120,13 +124,15 @@ That covers the two most common hallucination categories: made-up code and wrong
 
 Install additional MCP servers to unlock more tiers. Each one makes Truth Shield more powerful. See **[ENHANCE.md](ENHANCE.md)** for setup instructions.
 
-| Add this MCP | What you gain |
-|-------------|--------------|
-| **Context7** | Live library docs — React, Express, Prisma, 9,000+ libraries |
-| **Total Recall** | Persistent memory — corrections survive across sessions (learning loop) |
-| **Graphiti** | Entity relationships, temporal facts |
-| **fact-mcp** | Cached verifications — instant repeat lookups |
-| **Knowledge Graph** | Code structure — call chains, symbol maps, dependency trees |
+| Add this | What you gain |
+|----------|--------------|
+| **Context7** (MCP) | Live library docs — React, Express, Prisma, 9,000+ libraries |
+| **Total Recall** (MCP) | Persistent memory — corrections survive across sessions (learning loop) |
+| **fact-mcp** (MCP) | Cached verifications — instant repeat lookups |
+| **Graphiti** (MCP) | Entity relationships, temporal facts |
+| **Knowledge Graph** (MCP) | Code structure — call chains, symbol maps, dependency trees |
+| **Local LLM proxy** | Multi-model cross-check — catches training-data-wide blind spots |
+| **LLM Council** (skill) | Conflict resolution when verification sources disagree |
 
 With all sources connected, Truth Shield checks claims across **8 tiers** — from instant cache lookups to multi-model cross-verification.
 
@@ -168,11 +174,13 @@ Without Total Recall, corrections are reported but not remembered across session
 |--------|-------------|
 | `verify this` | Full verification of the previous response |
 | `truth-check this` / `fact-check this` | Same as above |
+| `shield this` / `truth shield` / `is this true` | Same as above |
+| `check your work` | Full verification |
 | `shield on` | Continuous mode — every response verified |
 | `shield off` | Stop continuous mode |
 | `are you sure...` | Spot-check a specific claim |
 | `really?` / `source?` / `prove it` | Spot-check the most recent claim |
-| `check your work` | Full verification |
+| `how do you know` / `is that right` / `double-check that` | Spot-check the most recent claim |
 
 ---
 
@@ -183,6 +191,7 @@ Without Total Recall, corrections are reported but not remembered across session
 | **VERIFIED** | Confirmed by a real source. Evidence quoted. |
 | **UNVERIFIED** | No source could confirm or deny. Not wrong — just unconfirmed. |
 | **CONTRADICTED** | A source directly contradicts the claim. Correction provided. |
+| **CONFLICTED** | Sources disagree with each other. Both positions presented for you to resolve. |
 
 **Claude's own confidence is never treated as a source.** A claim stated with certainty gets the same scrutiny as a hedged guess. The whole point is that confidence without evidence is worthless.
 
