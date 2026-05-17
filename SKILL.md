@@ -365,7 +365,7 @@ Call: mcp__fact-mcp__fact_set
 
 ### Claims checked: 7 | Verified: 5 | Unverified: 1 | Contradicted: 1
 
-| # | Claim | Verdict | Source | Tier |
+| # | Claim | Verdict | Evidence | Tier |
 |---|---|---|---|---|
 | 1 | useEffect runs after render | VERIFIED | Context7: React docs | 4 |
 | 2 | validateToken exists in auth.ts | VERIFIED | Grep: src/auth.ts:42 | 3 |
