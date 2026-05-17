@@ -313,7 +313,7 @@ New-Item -ItemType Directory -Path "$env:USERPROFILE\.claude\hooks" -Force | Out
 Copy-Item hooks\truth-shield-enforcer.js "$env:USERPROFILE\.claude\hooks\"
 ```
 
-2. Add to your `~/.claude/settings.json` (or `.claude/settings.json` in your project):
+2. Add to your `~/.claude/settings.json` under the `hooks.Stop` array (or create one):
 
 ```json
 {
@@ -323,8 +323,7 @@ Copy-Item hooks\truth-shield-enforcer.js "$env:USERPROFILE\.claude\hooks\"
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["~/.claude/hooks/truth-shield-enforcer.js"],
+            "command": "node \"$HOME/.claude/hooks/truth-shield-enforcer.js\"",
             "timeout": 10
           }
         ]
@@ -334,16 +333,19 @@ Copy-Item hooks\truth-shield-enforcer.js "$env:USERPROFILE\.claude\hooks\"
 }
 ```
 
-On Windows, use the full path: `"command": "node"`, `"args": ["C:\\Users\\YOU\\.claude\\hooks\\truth-shield-enforcer.js"]`
+If you already have Stop hooks, add the truth-shield entry to the existing `hooks` array.
 
 ### What it does
 
-- Reads hook input from stdin (Claude Code's standard hook protocol)
-- Tracks shield-on/off state in `~/.claude/truth-shield-state.json`
-- On every Stop event, reads the session transcript to check if verification tools were used
-- If shield-on is active and no verification occurred, exits with code 2 (block) and tells Claude to verify
-- Uses `stop_hook_active` flag to prevent infinite loops
-- Deterministic — cannot be overridden by prompt content
+- **Reads stdin** — async, with 2s timeout (matches Claude Code hook protocol)
+- **Detects shield state** — scans `messages` array (preferred) or transcript JSONL for "shield on"/"shield off"
+- **Classifies responses** — skips pure code, short answers, questions, and already-verified output
+- **Checks verification** — looks for truth-shield tool calls and verification markers after last user message
+- **Blocks unverified responses** — uses `decision: "block"` JSON output with reason (the proper Stop hook API)
+- **Anti-loop protection** — tracks enforcement per session via lockfile; after one block, subsequent stops pass through
+- **Subagent-safe** — skips enforcement inside subagents (they're tool executions, not user-facing)
+- **Crash-proof** — all errors caught and logged to `~/.claude/_logs/truth-shield-errors.log`; never crashes Claude
+- **Deterministic** — cannot be overridden by prompt content
 
 ---
 
