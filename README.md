@@ -47,9 +47,19 @@ Express 3.0 removed bundled middleware, not added listen().
 curl -sfL https://raw.githubusercontent.com/BAS-More/truth-shield/master/install.sh | bash
 ```
 
+**Mac / Linux (with enforcement hook):**
+```bash
+TRUTH_SHIELD_HOOK=yes curl -sfL https://raw.githubusercontent.com/BAS-More/truth-shield/master/install.sh | bash
+```
+
 **Windows (PowerShell):**
 ```powershell
 irm https://raw.githubusercontent.com/BAS-More/truth-shield/master/install.ps1 | iex
+```
+
+**Windows (with enforcement hook):**
+```powershell
+$env:TRUTH_SHIELD_HOOK="yes"; irm https://raw.githubusercontent.com/BAS-More/truth-shield/master/install.ps1 | iex
 ```
 
 ### Manual install

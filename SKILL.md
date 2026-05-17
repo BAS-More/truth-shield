@@ -135,6 +135,8 @@ Load: ToolSearch query "select:mcp__total-recall__verify_claim,mcp__total-recall
 
 Step A — corrections first:
   Call: mcp__total-recall__recall_by_category  category: "correction"
+  Match criteria: result content references the same entity/concept as the claim
+    (e.g., claim about "useEffect timing" matches correction about "useEffect runs after render")
   Match → CONTRADICTED (this lie was caught before)
 
 Step B — verify against stored facts:
@@ -352,7 +354,7 @@ When triggered:
 | **UNVERIFIED** | No source could confirm or deny. | `[unverified]` |
 | **CONTRADICTED** | Source directly contradicts. Correction provided. | `[CONTRADICTED — <correction>]` |
 | **CONFLICTED** | Sources disagree. Both positions presented. | `[CONFLICTED — see details]` |
-| **UNCERTAIN** | Self-consistency pre-screen flagged low confidence. | `[uncertain — needs verification]` |
+| **UNCERTAIN** | Self-consistency pre-screen flagged low confidence. Internal triage only — becomes UNVERIFIED if no tier confirms or contradicts. Never appears in final reports. | (not displayed — resolved before output) |
 
 
 ## Step 5: The learning loop

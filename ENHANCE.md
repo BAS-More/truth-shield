@@ -77,6 +77,8 @@ Add to your MCP config:
 }
 ```
 
+> **Note:** Verify the package name on [npm](https://www.npmjs.com/search?q=depscope-mcp) before installing — the published name may differ from the GitHub repo name.
+
 ### What it catches
 
 - Hallucinated package names ("Install `react-query-utils`" — doesn't exist, the real one is `@tanstack/react-query`)

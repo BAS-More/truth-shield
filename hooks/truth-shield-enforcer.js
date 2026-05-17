@@ -61,61 +61,39 @@ function main() {
     process.exit(0);
   }
 
-  // Detect shield on/off by reading the transcript for recent user messages
-  if (input.transcript_path) {
-    try {
-      const transcript = fs.readFileSync(input.transcript_path, 'utf8');
-      const lines = transcript.trim().split('\n');
-      // Check last 20 lines for shield on/off commands
-      const recent = lines.slice(-20);
-      for (const line of recent) {
-        try {
-          const entry = JSON.parse(line);
-          if (entry.type === 'human' || entry.role === 'user') {
-            const text = (typeof entry.content === 'string' ? entry.content : '').toLowerCase().trim();
-            if (text === 'shield on') {
-              state.shieldOn = true;
-              writeState(state);
-            } else if (text === 'shield off') {
-              state.shieldOn = false;
-              writeState(state);
-            }
-          }
-        } catch {
-          // Skip malformed transcript lines
-        }
-      }
-    } catch {
-      // Transcript unreadable — use cached state
-    }
-  }
-
-  // If shield is off, allow everything
-  if (!state.shieldOn) {
-    process.exit(0);
-  }
-
-  // Shield is on — check if verification tools were used in this turn.
-  // Look for truth-shield-related tool calls in the transcript.
+  // Single-pass transcript scan: detect shield state AND verification in one read
   let didVerify = false;
   if (input.transcript_path) {
     try {
       const transcript = fs.readFileSync(input.transcript_path, 'utf8');
       const lines = transcript.trim().split('\n');
 
-      // Find the last user message, then check tool uses after it
+      // Find the last user message index and scan for shield on/off commands
       let lastUserIdx = -1;
-      for (let i = lines.length - 1; i >= 0; i--) {
+      for (let i = 0; i < lines.length; i++) {
         try {
           const entry = JSON.parse(lines[i]);
-          if (entry.type === 'human' || entry.role === 'user') {
+          // Claude Code transcript format: type === 'user' for user messages,
+          // content at entry.message.content
+          if (entry.type === 'user') {
             lastUserIdx = i;
-            break;
+            const content = entry.message?.content;
+            const text = (typeof content === 'string' ? content : '').toLowerCase().trim();
+            if (text === 'shield on') {
+              state.shieldOn = true;
+            } else if (text === 'shield off') {
+              state.shieldOn = false;
+            }
           }
-        } catch { /* skip */ }
+        } catch {
+          // Skip malformed transcript lines
+        }
       }
 
-      if (lastUserIdx >= 0) {
+      writeState(state);
+
+      // Check for verification tool usage after the last user message
+      if (state.shieldOn && lastUserIdx >= 0) {
         const verificationPatterns = [
           'fact_query', 'fact_set',
           'verify_claim', 'recall_semantic', 'recall_by_category',
@@ -135,6 +113,11 @@ function main() {
       // Can't read transcript — give benefit of the doubt
       didVerify = true;
     }
+  }
+
+  // If shield is off, allow everything
+  if (!state.shieldOn) {
+    process.exit(0);
   }
 
   if (!didVerify) {
