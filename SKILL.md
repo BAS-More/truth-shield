@@ -2,17 +2,16 @@
 
 name: truth-shield
 
-description: "Fact-verification layer with 8 verification sources — cross-checks Claude's claims against local files, stored knowledge (Total Recall), code graph (Knowledge Graph), relationship memory (Graphiti), live docs (Context7), web search, multi-model cross-check (9Router), and LLM Council for conflict resolution. Catches hallucinations, ungrounded assertions, and confident-but-wrong statements. Every contradiction is persisted so the same lie is never repeated. MANDATORY TRIGGERS: 'verify this', 'truth-check this', 'fact-check this', 'shield this', 'truth shield', 'truth-shield', 'is this true', 'check your work'. STRONG TRIGGERS: 'are you sure', 'really?', 'source?', 'prove it', 'how do you know', 'is that right', 'double-check that'. PASSIVE MODE: 'shield on' enables continuous verification — every claim verified before presenting. 'shield off' disables it. Do NOT trigger on opinion questions, creative writing, brainstorming, or subjective preferences — Truth Shield is for factual claims only."
+description: "Fact-verification layer v3 — catches hallucinations using 10 verification tiers, self-consistency sampling, isolated-context verification (CoVe), package existence checking (DepScope), and multi-judge arbitration. Cross-checks claims against local files, stored knowledge, live docs, web search, multi-model cross-check, and external fact-checkers. Every contradiction is persisted so the same lie is never repeated. MANDATORY TRIGGERS: 'verify this', 'truth-check this', 'fact-check this', 'shield this', 'truth shield', 'truth-shield', 'is this true', 'check your work'. STRONG TRIGGERS: 'are you sure', 'really?', 'source?', 'prove it', 'how do you know', 'is that right', 'double-check that'. PASSIVE MODE: 'shield on' / 'shield off'. Do NOT trigger on opinions, creative writing, brainstorming, or subjective preferences."
 
 ---
 
 
-# Truth Shield — Hallucination Defence Layer
+# Truth Shield v3 — Hallucination Defence Layer
 
-Claude generates plausible text, not verified truth. Truth Shield fixes this by checking every factual claim against real sources before presenting it.
+Claude generates plausible text, not verified truth. Truth Shield checks every factual claim against real sources before presenting it.
 
-It wires 8 verification systems into a single pipeline. Every contradiction is persisted — the same lie is never repeated.
-
+v3 adds research-backed upgrades: self-consistency sampling detects uncertain claims before verification, isolated-context verification breaks confirmation bias, DepScope catches hallucinated packages, and multi-judge arbitration resolves conflicts without single-model bias.
 
 ---
 
@@ -32,20 +31,22 @@ User says "are you sure about X?" — checks that one claim only.
 ---
 
 
-## The verification tiers (0–8)
+## The verification tiers (0–9)
 
-Claims are checked in this order. Each tier is independent — if one is unavailable, skip it and try the next. Early tiers are fast and free; later tiers are slower but catch more.
+Claims are checked in this order. Each tier is independent — if unavailable, skip it. Early tiers are fast; later tiers catch more.
 
 ```
-Tier 0: fact-mcp cache        — instant, free (previously verified claims)
-Tier 1: Total Recall           — stored knowledge, past corrections, verified facts
-Tier 2: Knowledge Graph        — code structure (symbols, call chains, dependencies)
-Tier 3: Local files            — Grep/Read/Glob (ground truth for code)
-Tier 4: Context7               — live library/API documentation
-Tier 5: Graphiti               — relationship memory (entity facts, connections)
-Tier 6: WebSearch              — general knowledge, current events
-Tier 7: 9Router multi-model    — cross-check against a different model family
-Tier 8: LLM Council            — conflict resolution when sources disagree
+Tier 0:   fact-mcp cache         — instant (previously verified claims)
+Tier 1:   Total Recall            — stored knowledge, past corrections
+Tier 2:   Knowledge Graph         — code structure (symbols, call chains)
+Tier 3:   Local files             — Grep/Read/Glob (ground truth for code)
+Tier 3.5: DepScope                — package existence across 19 ecosystems
+Tier 4:   Context7                — live library/API documentation
+Tier 5:   Graphiti                — relationship memory (entity facts)
+Tier 6:   WebSearch               — general knowledge, current events
+Tier 7:   Multi-model cross-check — self-consistency + different model family
+Tier 8:   MiniCheck               — external fact-checking model
+Tier 9:   Multi-Judge Council     — FACTS-style conflict resolution
 ```
 
 
@@ -56,365 +57,364 @@ Tier 8: LLM Council            — conflict resolution when sources disagree
 
 Parse the response and extract every factual claim — statements that are either true or false.
 
-**Hedged statements are not claims.** "I think", "probably", "might", "could", "I believe" — these are already signalling uncertainty. Do not extract them. Only extract statements presented as definite facts.
+**Hedged statements are not claims.** "I think", "probably", "might" — these signal uncertainty. Only extract statements presented as definite facts.
 
 Categorise each claim:
 
 | Category | Example | Best tiers |
 |---|---|---|
-| **Code symbol** | "Function X exists at line Y" | Tier 2 (Knowledge Graph) → Tier 3 (Grep/Read) |
-| **Code structure** | "Function X calls function Y" | Tier 2 (Knowledge Graph cypher) |
-| **API/library** | "useEffect runs after render" | Tier 4 (Context7) → Tier 6 (WebSearch) |
-| **Past decision** | "We chose JWT over sessions" | Tier 1 (Total Recall) → Tier 5 (Graphiti) |
-| **Entity relationship** | "Service A depends on Service B" | Tier 5 (Graphiti) → Tier 2 (Knowledge Graph) |
-| **General knowledge** | "Python was created in 1991" | Tier 6 (WebSearch) → Tier 7 (9Router) |
-| **Current state** | "Server runs on port 3001" | Tier 3 (Read config) |
+| **Code symbol** | "Function X exists at line Y" | 2 → 3 |
+| **Code structure** | "Function X calls function Y" | 2 (cypher) |
+| **Package/library name** | "Install lodash-utils" | 3.5 (DepScope) → 4 |
+| **API/library behaviour** | "useEffect runs after render" | 4 → 6 |
+| **Past decision** | "We chose JWT over sessions" | 1 → 5 |
+| **Entity relationship** | "Service A depends on Service B" | 5 → 2 |
+| **General knowledge** | "Python was created in 1991" | 6 → 7 |
+| **Current state** | "Server runs on port 3001" | 3 (Read config) |
 
 
-## Step 2: Verification pipeline
+## Step 2: Self-consistency pre-screen (v3)
 
-For each claim, work through tiers until you get a verdict. Stop at the first VERIFIED or CONTRADICTED result — no need to check further tiers for that claim.
+Before full verification, flag claims that Claude itself is uncertain about. This catches hallucinations that sound confident but aren't stable.
+
+```
+For each high-risk claim (package names, version numbers, API signatures, dates):
+
+1. Mentally re-derive the claim from scratch — would you give the same answer
+   if asked independently, with no memory of what you just said?
+
+2. Rate your genuine internal confidence (not the confidence you displayed):
+   - HIGH: would bet on it, have seen it many times
+   - MEDIUM: fairly sure but could be wrong
+   - LOW: guessing, filling in from pattern-matching
+
+3. Any claim rated LOW → auto-flag as UNCERTAIN, prioritize for verification
+   Any claim rated MEDIUM → verify with extra scrutiny (check 2+ tiers)
+   HIGH claims → normal verification pipeline
+```
+
+This is NOT a verification source — it's a triage step. Claude's self-assessment is unreliable, which is precisely why uncertain claims get escalated to real sources. The value is catching the claims Claude knows (at some level) it's guessing about.
+
+
+## Step 3: Verification pipeline
+
+For each claim, work through tiers until you get a verdict. Stop at the first VERIFIED or CONTRADICTED result.
+
+**v3 rule: Isolated context for verification.** When checking a claim, do NOT let the original response influence your interpretation of evidence. Read the source material as if you'd never seen the claim. This breaks confirmation bias — the #1 reason v2 missed contradictions.
 
 
 ### Tier 0 — fact-mcp cache (instant)
-
-Check if this claim was previously verified. Avoids redundant lookups.
 
 ```
 Load: ToolSearch query "select:mcp__fact-mcp__fact_query,mcp__fact-mcp__fact_set"
 
 Call: mcp__fact-mcp__fact_query
   key: "truth-shield:<normalized-claim>"
-  (normalize: lowercase, strip punctuation, collapse whitespace)
 
-Hit → use cached verdict + source, skip all other tiers
+Hit → use cached verdict + source, skip remaining tiers
 Miss → continue to Tier 1
 ```
 
 
 ### Tier 1 — Total Recall (stored knowledge)
 
-Check against everything the system has ever learned — past verifications, corrections, decisions, facts.
-
 ```
 Load: ToolSearch query "select:mcp__total-recall__verify_claim,mcp__total-recall__recall_semantic,mcp__total-recall__recall_by_category"
 
-Step A — Check for existing corrections first:
-  Call: mcp__total-recall__recall_by_category
-    category: "correction"
-  Scan corrections for anything matching this claim.
-  If a correction matches → CONTRADICTED (the system already caught this lie before)
+Step A — corrections first:
+  Call: mcp__total-recall__recall_by_category  category: "correction"
+  Match → CONTRADICTED (this lie was caught before)
 
-Step B — Verify against stored facts:
+Step B — verify against stored facts:
   Call: mcp__total-recall__verify_claim
-    claim_type: <"version" | "hosting" | "status" | "technology" | etc.>
-    value: <the claim value>
-  Returns: VERIFIED, CONFLICT, or UNKNOWN
+    claim_type: <"version"|"hosting"|"status"|"technology"|etc.>
+    value: <the claim>
 
-Step C — Semantic search for related knowledge:
-  Call: mcp__total-recall__recall_semantic
-    query: <the claim as a natural language question>
-  If matching entries found with high confidence → use as evidence
+Step C — semantic search:
+  Call: mcp__total-recall__recall_semantic  query: <claim as question>
 ```
-
-**Why this matters:** Total Recall remembers every correction ever made. If Claude lied about something last week and was corrected, Tier 1 catches it instantly this week.
 
 
 ### Tier 2 — Knowledge Graph (code structure)
 
-For claims about code — symbols, call chains, dependencies, class hierarchies.
-
 ```
 Load: ToolSearch query "select:mcp__knowledge-graph__query,mcp__knowledge-graph__context,mcp__knowledge-graph__cypher"
 
-For "function X exists" claims:
-  Call: mcp__knowledge-graph__context
-    name: <function name>
-  Returns: file path, callers, callees, references
-  If found → VERIFIED with file path and signature
-  If not found → fall through to Tier 3 (Grep) before marking CONTRADICTED
+"function X exists":
+  Call: mcp__knowledge-graph__context  name: <function>
+  Found → VERIFIED with path+signature
+  Not found → fall through to Tier 3
 
-For "X calls Y" or "X depends on Y" claims:
+"X calls Y":
   Call: mcp__knowledge-graph__cypher
-    query: 'MATCH (a)-[:CodeRelation {type: "CALLS"}]->(b) WHERE a.name = "X" AND b.name = "Y" RETURN a, b'
-  If result → VERIFIED
-  If no result → CONTRADICTED with "no call relationship found in code graph"
-
-For "how does feature X work" claims:
-  Call: mcp__knowledge-graph__query
-    query: <the claim>
-  Returns: execution flows, ranked by relevance
+    query: 'MATCH (a)-[:CodeRelation {type:"CALLS"}]->(b) WHERE a.name="X" AND b.name="Y" RETURN a,b'
 ```
-
-**Why this matters:** Knowledge Graph has the actual call graph indexed. When Claude says "function A calls function B," this is a definitive check — not a text search, but a structural analysis.
 
 
 ### Tier 3 — Local files (Grep / Read / Glob)
 
-Ground truth for anything in the codebase.
-
 ```
-No ToolSearch needed — Grep, Read, Glob are always available.
+Always available — no ToolSearch needed.
 
-1. Glob for the file (does it exist?)
-2. Read the file at the claimed location (is the content what was claimed?)
-3. Grep for the symbol name across the project (where does it actually appear?)
-4. Compare actual content against claim
-5. If found and matches → VERIFIED, quote the actual line
-6. If found but differs → CONTRADICTED, quote actual vs claimed
-7. If not found → CONTRADICTED with "not found in codebase"
+1. Glob for the file
+2. Read at claimed location
+3. Grep for symbol across project
+4. Compare actual vs claimed
+5. Found + matches → VERIFIED, quote the line
+6. Found + differs → CONTRADICTED, quote actual vs claimed
+7. Not found → CONTRADICTED with "not found in codebase"
 ```
 
-**Always quote the evidence.** "VERIFIED — src/auth.ts:42 contains: `export function validateToken(token: string): boolean`" — not just "VERIFIED — checked the file."
+**Always quote evidence.** "VERIFIED — src/auth.ts:42: `export function validateToken(...)`" — not just "checked the file."
+
+
+### Tier 3.5 — DepScope package verification (v3)
+
+For any claim that references a package, library, or module by name — especially in install commands, import statements, or dependency recommendations.
+
+```
+Load: ToolSearch query "+depscope"
+
+Call: depscope check_package
+  package_name: <the claimed package>
+  ecosystem: <npm|pypi|cargo|go|maven|etc.>
+
+EXISTS → continue (package is real, verify other claims about it)
+NOT FOUND → CONTRADICTED — "Package '<name>' does not exist in <ecosystem>.
+  This may be a hallucinated package name (slopsquatting risk).
+  Similar real packages: <suggestions from DepScope>"
+```
+
+**Why this matters:** Hallucinated package names are a top-5 hallucination category. Users who `npm install` a fake package name risk installing malware that squatted the name. DepScope checks existence across 19 ecosystems.
+
+If DepScope is unavailable, fall back to WebSearch: search `"<package-name>" site:npmjs.com` (or pypi.org, crates.io, etc.).
 
 
 ### Tier 4 — Context7 (live documentation)
 
-For library/API/framework claims. Live docs beat training data.
-
 ```
 Load: ToolSearch query "select:mcp__context7__resolve-library-id,mcp__context7__query-docs"
 
-1. Call: mcp__context7__resolve-library-id
-     libraryName: <e.g. "react", "express", "prisma">
-   Returns: library ID
-
-2. Call: mcp__context7__query-docs
-     context7CompatibleLibraryID: <ID from step 1>
-     query: <the specific claim as a question>
-   Returns: relevant doc passages
-
-3. Compare claim against doc passages
-   Match → VERIFIED, quote the doc passage
-   Contradiction → CONTRADICTED, quote what docs actually say
-   No relevant passage → UNVERIFIED, note "docs checked, no match found"
+1. mcp__context7__resolve-library-id  libraryName: <library>
+2. mcp__context7__query-docs  context7CompatibleLibraryID: <id>  query: <claim>
+3. Match → VERIFIED, quote doc passage
+   Contradiction → CONTRADICTED, quote what docs say
+   No match → UNVERIFIED
 ```
 
 
 ### Tier 5 — Graphiti (relationship memory)
 
-For claims about entities, relationships, and facts stored in the knowledge graph memory.
-
 ```
 Load: ToolSearch query "select:mcp__graphiti__search_memory_facts,mcp__graphiti__search_nodes"
 
-For relationship claims ("X depends on Y", "A was decided because of B"):
-  Call: mcp__graphiti__search_memory_facts
-    query: <the claim>
-  Returns: facts with source and temporal metadata
-
-For entity claims ("Service X exists", "User Y is the owner"):
-  Call: mcp__graphiti__search_nodes
-    query: <entity name or description>
-  Returns: matching entities with attributes
-
-If fact found and matches → VERIFIED with source
-If fact found and contradicts → CONTRADICTED with the stored fact
-If no fact found → UNVERIFIED (no entry in relationship memory)
+Relationships: mcp__graphiti__search_memory_facts  query: <claim>
+Entities: mcp__graphiti__search_nodes  query: <entity>
 ```
 
 
 ### Tier 6 — WebSearch (general knowledge)
 
-For claims about the world — dates, versions, people, events.
-
 ```
 Load: ToolSearch query "select:WebSearch"
 
-Call: WebSearch
-  query: <the claim phrased as a verification question>
-  Example: "What year was Python created?" (not "Python was created in 1991")
+Call: WebSearch  query: <claim as verification question>
 
-Look for multiple independent sources. **Require at least 2 agreeing sources before marking VERIFIED** — a single search result could be wrong, outdated, or adversarial.
-Two or more sources agree and match claim → VERIFIED, cite the sources
-Two or more sources agree but contradict claim → CONTRADICTED, cite what sources say
-Only one source found → UNVERIFIED, cite it but note "single source — verify independently"
-Sources disagree with each other → UNVERIFIED, present the disagreement
+**Require 2+ agreeing sources before VERIFIED.**
+Single source → UNVERIFIED (note "single source — verify independently")
+Sources disagree → UNVERIFIED, present disagreement
+WebSearch-only verdicts: persist at confidence 0.7 (not 0.9)
 ```
 
-**Never mark general knowledge VERIFIED on a single web source or on Claude's confidence alone.** Web results can be manipulated. Claude's confidence and accuracy are uncorrelated. When persisting WebSearch-only verdicts to the learning loop, use confidence 0.7 (not 0.9) to reflect the lower reliability.
+**Never mark VERIFIED on a single web source or Claude's confidence alone.**
 
 
-### Tier 7 — 9Router multi-model cross-check
+### Tier 7 — Multi-model cross-check with self-consistency (v3)
 
-Query a different model family. The only check that catches training-data-wide blind spots.
+v3 upgrades this tier with self-consistency sampling: query multiple models (or the same model multiple times at high temperature) and check agreement.
+
+```
+Load: ToolSearch query "select:WebFetch"
+
+Step A — Cross-model check:
+  Call: WebFetch
+    url: "http://localhost:YOUR_PORT/v1/chat/completions"
+    headers: {"Content-Type":"application/json","Authorization":"Bearer YOUR_TOKEN"}
+    body: {
+      "model": "gpt-4o",
+      "messages": [{"role":"user","content":"Is this true or false? <claim>. Cite your source."}],
+      "max_tokens": 300,
+      "temperature": 0.0
+    }
+
+  Default: http://localhost:20128 with "Bearer 9router"
+  See ENHANCE.md Tier 7 for configuration.
+
+Step B — Self-consistency (if proxy supports multiple models):
+  Repeat the query with 2 additional models (e.g., gemini-2.5-flash, llama-3.3-70b)
+  
+  All 3 agree → strong signal (increases confidence)
+  2/3 agree → moderate signal
+  All 3 disagree → HIGH UNCERTAINTY, flag as CONFLICTED
+
+If no proxy running → skip tier, note "multi-model unavailable"
+```
+
+
+### Tier 8 — MiniCheck external fact-checker (v3)
+
+A purpose-built fact-verification model. Unlike LLMs that generate plausible text, MiniCheck was trained specifically to judge `(document, claim) → true/false`. It outperforms GPT-4 at fact-checking tasks (EMNLP 2024).
 
 ```
 Load: ToolSearch query "select:WebFetch"
 
 Call: WebFetch
-  url: "http://localhost:YOUR_PORT/v1/chat/completions"
+  url: "http://localhost:11434/api/generate"
   method: POST
-  headers: {"Content-Type": "application/json", "Authorization": "Bearer YOUR_TOKEN"}
   body: {
-    "model": "gpt-4o",
-    "messages": [{"role": "user", "content": "Is the following true or false? <claim>. State the answer and cite your source."}],
-    "max_tokens": 300
+    "model": "bespoke-minicheck",
+    "prompt": "Document: <evidence from earlier tiers>\nClaim: <the claim>\nIs the claim supported by the document? Answer YES or NO.",
+    "stream": false
   }
 
-  Default: http://localhost:20128 with "Bearer 9router" — change these to match your local proxy.
-  See ENHANCE.md Tier 7 for configuration instructions.
+YES → reinforces VERIFIED verdict
+NO → reinforces CONTRADICTED verdict (or downgrades UNVERIFIED to CONTRADICTED)
 
-Both models agree → increases confidence (not proof — both could share the error)
-Models disagree → flag as CONFLICTED, present both positions, escalate to Tier 8
-Second model says "I don't know" → no signal, skip
+Default: Ollama at localhost:11434 with bespoke-minicheck model.
+See ENHANCE.md Tier 8 for setup: `ollama pull bespoke-minicheck`
 ```
 
-If no proxy is running, the request fails with connection refused. Skip this tier and note "multi-model cross-check unavailable" in the report.
+MiniCheck is most valuable as a second opinion on claims that passed earlier tiers. If Tier 4 (Context7) says VERIFIED but MiniCheck says NO, escalate to Tier 9.
+
+If Ollama/MiniCheck unavailable → skip tier.
 
 
-### Tier 8 — LLM Council (conflict resolution)
+### Tier 9 — Multi-Judge Council (v3, replaces old Tier 8)
 
-Fires ONLY when tiers 1-7 produce conflicting evidence. Not a blanket check — a disagreement arbitrator.
+Fires ONLY when tiers produce conflicting evidence. Uses FACTS-style multi-judge arbitration (DeepMind 2024) instead of single-model resolution.
 
 ```
-Trigger condition: two or more tiers returned different verdicts for the same claim
-  Example: Context7 says VERIFIED but WebSearch says CONTRADICTED
-  Example: Claude says X, GPT-4o says Y
+Trigger: two or more tiers returned different verdicts for the same claim
 
-When triggered, invoke the /llm-council skill (if available) with:
-  "Two sources disagree on this factual claim:
-   Claim: <the claim>
-   Source A says: <verdict + evidence>
-   Source B says: <verdict + evidence>
-   Which source is more authoritative and why? Provide a final verdict."
+When triggered:
+  Option A — If /llm-council skill is available:
+    Invoke with: "Sources disagree on: <claim>
+      Source A: <verdict + evidence>
+      Source B: <verdict + evidence>
+      Arbitrate using FACTS framework: each judge scores independently,
+      then average. Final verdict requires 2/3 majority."
 
-If /llm-council is not available, present both positions to the user:
-  "[CONFLICTED] Sources disagree on this claim:
-   - <Source A>: <evidence>
-   - <Source B>: <evidence>
-   Verify manually."
+  Option B — If multi-model proxy available but no /llm-council:
+    Query 3 different models via WebFetch with the same arbitration prompt
+    Each responds independently (isolated context)
+    Tally: 2/3+ agree → that verdict wins
+    No majority → CONFLICTED, present all positions to user
+
+  Option C — No council, no proxy:
+    Present both positions: "[CONFLICTED] Sources disagree: ..."
 ```
-
-The council is expensive (15 sub-agents). It only fires on genuine conflicts — typically 0-2 times per verification run.
 
 
 ---
 
 
-## Step 3: Confidence scoring
+## Step 4: Confidence scoring
 
 | Score | Meaning | Display |
 |---|---|---|
-| **VERIFIED** | Confirmed by at least one authoritative source. Evidence quoted. | Presented normally |
+| **VERIFIED** | Confirmed by authoritative source. Evidence quoted. | Presented normally |
 | **UNVERIFIED** | No source could confirm or deny. | `[unverified]` |
 | **CONTRADICTED** | Source directly contradicts. Correction provided. | `[CONTRADICTED — <correction>]` |
 | **CONFLICTED** | Sources disagree. Both positions presented. | `[CONFLICTED — see details]` |
+| **UNCERTAIN** | Self-consistency pre-screen flagged low confidence. | `[uncertain — needs verification]` |
 
 
-## Step 4: The learning loop
+## Step 5: The learning loop
 
-This is what makes Truth Shield get smarter over time. When a claim is CONTRADICTED:
+When a claim is CONTRADICTED:
 
 ```
 Load: ToolSearch query "select:mcp__total-recall__correct,mcp__total-recall__remember,mcp__graphiti__add_memory"
 
-1. PERSIST the correction permanently:
-   Call: mcp__total-recall__remember
+1. PERSIST correction:
+   mcp__total-recall__remember
      category: "correction"
-     content: "Claude claimed '<wrong claim>'. Correct answer: '<right answer>'. Source: <source>"
+     content: "Claude claimed '<wrong>'. Correct: '<right>'. Source: <source>"
      tags: ["truth-shield", "<topic>"]
-     triggers: [<key phrases from the claim>]
+     triggers: [<key phrases>]
      scope: "global"
 
-2. CACHE the correct answer for immediate reuse:
-   Call: mcp__fact-mcp__fact_set
+2. CACHE correct answer:
+   mcp__fact-mcp__fact_set
      key: "truth-shield:<normalized-claim>"
-     value: '{"verdict":"CONTRADICTED","correction":"<correct answer>","source":"<source>"}'
+     value: '{"verdict":"CONTRADICTED","correction":"<answer>","source":"<source>"}'
      tier: "semi-dynamic"
 
-3. ADD to relationship memory for cross-session recall:
-   Call: mcp__graphiti__add_memory
+3. ADD to relationship memory:
+   mcp__graphiti__add_memory
      name: "Truth Shield correction"
-     episode_body: "Corrected claim: '<wrong>' → '<right>'. Source: <source>."
-     source: "truth-shield"
-     source_description: "Automated fact verification correction"
+     episode_body: "Corrected: '<wrong>' → '<right>'. Source: <source>."
 
-4. If an existing Total Recall entry was the source of the wrong claim:
-   Call: mcp__total-recall__correct
-     original_id: <UUID of the wrong entry>
-     corrected_content: <the correct information>
-     reason: "Truth Shield verification found this to be incorrect. Source: <source>"
+4. If existing Total Recall entry was wrong:
+   mcp__total-recall__correct
+     original_id: <UUID>
+     corrected_content: <correct info>
+     reason: "Truth Shield: <source>"
      severity: "high"
 ```
 
-**Why this matters:** Next session, when Claude tries to make the same wrong claim, Tier 1 (Total Recall) catches it instantly from stored corrections. The lie is killed permanently.
-
-When a claim is VERIFIED, store it too (lighter weight):
-
+When VERIFIED, store lighter weight:
 ```
-Call: mcp__total-recall__remember
-  category: "fact"
-  content: "<verified claim>. Source: <source>"
-  tags: ["truth-shield", "<topic>"]
-  scope: "global"
-  confidence: 0.9
-
-Call: mcp__fact-mcp__fact_set
-  key: "truth-shield:<normalized-claim>"
-  value: '{"verdict":"VERIFIED","source":"<source>"}'
-  tier: "semi-dynamic"
+mcp__total-recall__remember  category:"fact"  content:"<claim>. Source:<source>"  confidence:0.9
+mcp__fact-mcp__fact_set  key:"truth-shield:<claim>"  value:'{"verdict":"VERIFIED","source":"<source>"}'
 ```
 
 
 ---
 
 
-## Step 5: Output
+## Step 6: Output
 
 ### Verify After report
 
 ```
-## Truth Shield Report
+## Truth Shield Report (v3)
 
-### Claims checked: 7 | Verified: 5 | Unverified: 1 | Contradicted: 1
+Claims checked: 7 | Verified: 5 | Unverified: 1 | Contradicted: 1
 
 | # | Claim | Verdict | Evidence | Tier |
 |---|---|---|---|---|
 | 1 | useEffect runs after render | VERIFIED | Context7: React docs | 4 |
-| 2 | validateToken exists in auth.ts | VERIFIED | Grep: src/auth.ts:42 | 3 |
-| 3 | We chose JWT for auth | VERIFIED | Total Recall: decision-2026-04 | 1 |
-| 4 | Express defaults to port 3000 | VERIFIED | WebSearch: Express docs | 6 |
-| 5 | parseDate calls moment() | CONTRADICTED | Knowledge Graph: no CALLS edge found | 2 |
-| 6 | Python 3.12 released March 2024 | UNVERIFIED | WebSearch: conflicting dates found | 6 |
-| 7 | useSyncExternalStore added in React 16 | CONTRADICTED | Context7: added in React 18 | 4 |
+| 2 | validateToken in auth.ts | VERIFIED | Grep: src/auth.ts:42 | 3 |
+| 3 | Install lodash-helpers | CONTRADICTED | DepScope: package not found in npm | 3.5 |
+| 4 | Express defaults to port 3000 | VERIFIED | WebSearch (3 sources) | 6 |
+| 5 | parseDate calls moment() | CONTRADICTED | KG: calls date-fns/parse | 2 |
+| 6 | Python 3.12 released Mar 2024 | UNVERIFIED | Conflicting dates | 6 |
+| 7 | We chose JWT for auth | VERIFIED | Total Recall: decision-2026-04 | 1 |
 
-### Corrections persisted (learning loop)
-- Claim 5: `parseDate` does not call `moment()`. Knowledge Graph shows it calls `date-fns/parse`. Stored in Total Recall.
-- Claim 7: `useSyncExternalStore` was introduced in React 18. Stored in Total Recall + Graphiti.
-
-### Confidence: 71% (5/7 verified)
-### Tiers used: Total Recall, Knowledge Graph, Grep, Context7, WebSearch
-### Corrections stored: 2 (these errors will be caught instantly in future sessions)
+Corrections persisted: 2 (caught instantly in future sessions)
+Self-consistency flags: 1 claim pre-screened as LOW confidence (#3)
+Tiers used: Total Recall, Knowledge Graph, Grep, DepScope, Context7, WebSearch
 ```
 
 ### Shield On footer
 
 ```
-[shield: 5/7 verified, 2 corrected, 2 corrections persisted | tiers: 1,2,3,4,6]
+[shield: 5/7 verified, 2 corrected | tiers: 1,2,3,3.5,4,6 | v3]
 ```
 
 ### Zero-verified report
 
-When claims cannot be verified (e.g., general knowledge with no WebSearch available and no relevant local files):
-
 ```
-## Truth Shield Report
+## Truth Shield Report (v3)
 
 Claims checked: 4 | Verified: 0 | Unverified: 4
 
-Available tiers found no evidence for these claims:
+Available tiers found no evidence:
 - Tier 3 (Grep/Read/Glob): checked — no relevant local files
-- Tier 0 (fact-mcp): unavailable
-- Tier 1 (Total Recall): unavailable
-- Tier 2 (Knowledge Graph): unavailable
-- Tier 4 (Context7): unavailable
-- Tier 5 (Graphiti): unavailable
-- Tier 6 (WebSearch): unavailable
-- Tier 7 (multi-model): unavailable
+- Tier 0-2, 4-9: unavailable
 
-UNVERIFIED does not mean wrong — it means no source was available to confirm.
-Verify these claims independently before relying on them.
+UNVERIFIED ≠ wrong — no source was available to confirm.
 ```
 
 
@@ -423,21 +423,23 @@ Verify these claims independently before relying on them.
 
 ## Graceful degradation
 
-Each tier is independent. Missing tiers reduce coverage but never break the pipeline.
+Every tier is independent. Missing tiers reduce coverage, never break the pipeline.
 
 | Tier | If unavailable | Impact |
 |---|---|---|
-| 0 - fact-mcp | Skip cache, check all sources fresh | Slower, but same accuracy |
-| 1 - Total Recall | No past corrections loaded | Same errors may repeat across sessions |
-| 2 - Knowledge Graph | No code structure verification | Code claims rely on Grep only (text match, not structural) |
-| 3 - Grep/Read/Glob | No local file verification | Code claims all UNVERIFIED |
-| 4 - Context7 | No live docs | Library claims rely on WebSearch or go UNVERIFIED |
-| 5 - Graphiti | No relationship memory | Entity/relationship claims go UNVERIFIED |
-| 6 - WebSearch | No web verification | General knowledge claims all UNVERIFIED |
-| 7 - 9Router | No multi-model cross-check | Training-data blind spots undetectable |
-| 8 - LLM Council | Conflicts presented to user directly | User resolves conflicts instead of council |
+| 0 - fact-mcp | Check all sources fresh | Slower |
+| 1 - Total Recall | No past corrections | Errors may repeat |
+| 2 - Knowledge Graph | No structure verification | Code uses Grep only |
+| 3 - Grep/Read/Glob | No local verification | Code claims UNVERIFIED |
+| 3.5 - DepScope | No package checking | Fake packages undetected |
+| 4 - Context7 | No live docs | Library claims use WebSearch |
+| 5 - Graphiti | No relationship memory | Entity claims UNVERIFIED |
+| 6 - WebSearch | No web verification | General knowledge UNVERIFIED |
+| 7 - Multi-model | No cross-check | Training blind spots undetected |
+| 8 - MiniCheck | No external fact-checker | Rely on tier agreement only |
+| 9 - Multi-Judge | Conflicts shown to user | User resolves manually |
 
-**Minimum viable verification:** Tier 3 (Grep/Read/Glob) alone covers the highest-value case — code claims. Everything else is additive.
+**Minimum viable:** Tier 3 alone covers code claims — the highest-value case.
 
 
 ---
@@ -445,11 +447,10 @@ Each tier is independent. Missing tiers reduce coverage but never break the pipe
 
 ## What Truth Shield does NOT do
 
-- **Verify opinions.** "React is better than Vue" — not a factual claim.
+- **Verify opinions.** "React is better than Vue" — not factual.
 - **Verify predictions.** "This will scale to 1M users" — speculation.
 - **Verify recommendations.** "You should use TypeScript" — advice.
-- **Make Claude omniscient.** No source → UNVERIFIED. That's honest.
-- **Guarantee 100% accuracy.** Sources can be wrong. The goal is evidence, not omniscience.
+- **Guarantee 100%.** Sources can be wrong. The goal is evidence, not omniscience.
 
 
 ---
@@ -457,9 +458,9 @@ Each tier is independent. Missing tiers reduce coverage but never break the pipe
 
 ## Important notes
 
-- **Always quote evidence.** Not "VERIFIED — checked docs." Say "VERIFIED — React docs state: `useEffect fires after the browser paints`."
-- **Confidence ≠ accuracy.** Never skip verification because Claude feels sure. The whole point is that confidence without evidence is worthless.
-- **Contradictions are permanent.** Every CONTRADICTED claim is stored in Total Recall. The learning loop means Truth Shield gets smarter with every correction.
-- **UNVERIFIED ≠ wrong.** It means no source was available. Many true statements will be UNVERIFIED.
-- **Conflicts are valuable.** When sources disagree, don't pick one — present both (or escalate to LLM Council).
-- **Speed vs accuracy is the user's choice.** Shield-on is thorough but slow. Spot-check is fast but narrow.
+- **Always quote evidence.** Not "checked docs." Say what the docs say.
+- **Confidence ≠ accuracy.** Never skip verification because Claude feels sure.
+- **Isolated context (v3).** When reading evidence, pretend you never saw the original claim. This breaks confirmation bias.
+- **Contradictions are permanent.** Every CONTRADICTED claim enters the learning loop.
+- **UNVERIFIED ≠ wrong.** Many true statements will be UNVERIFIED.
+- **Package names are high-risk.** Always check Tier 3.5 for any package recommendation.

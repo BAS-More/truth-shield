@@ -1,8 +1,8 @@
-# Enhancing Truth Shield
+# Enhancing Truth Shield v3
 
 Truth Shield works out of the box with zero configuration — it uses Grep, Read, and Glob (built into Claude Code) to verify code claims, and WebSearch for general knowledge.
 
-But it gets dramatically better with optional MCP servers. Each one unlocks a new verification tier.
+But it gets dramatically better with optional MCP servers, models, and hooks. Each one unlocks a new verification tier.
 
 ---
 
@@ -10,15 +10,17 @@ But it gets dramatically better with optional MCP servers. Each one unlocks a ne
 
 Tier numbers match the SKILL.md pipeline — the same numbers you see in verification reports.
 
-| Tier | MCP Server | What it adds | Install effort |
-|------|------------|-------------|----------------|
-| 0 | **fact-mcp** | Cached verifications — instant lookups for repeat claims | 5 minutes |
+| Tier | Source | What it adds | Install effort |
+|------|--------|-------------|----------------|
+| 0 | **fact-mcp** | Cached verifications — instant repeat lookups | 5 minutes |
 | 1 | **Total Recall** | Persistent memory — corrections survive across sessions | 5 minutes |
 | 2 | **Knowledge Graph** | Code structure — call chains, dependencies, symbol maps | 10 minutes |
+| 3.5 | **DepScope** | Package existence checking across 19 ecosystems | 5 minutes |
 | 4 | **Context7** | Live library/API docs (React, Express, Prisma, 9,000+ libs) | 1 minute |
 | 5 | **Graphiti** | Entity relationships, temporal facts | 10 minutes |
-| 7 | **Local LLM proxy** | Multi-model cross-check (GPT-4o, Gemini, Llama, etc.) | Varies |
-| 8 | **LLM Council skill** | Conflict resolution when sources disagree | 5 minutes |
+| 7 | **Local LLM proxy** | Multi-model cross-check + self-consistency sampling | Varies |
+| 8 | **MiniCheck** | External fact-checking model (EMNLP 2024) | 5 minutes |
+| 9 | **LLM Council skill** | FACTS-style multi-judge conflict resolution | 5 minutes |
 
 Tier 3 (Grep/Read/Glob) and Tier 6 (WebSearch) are built into Claude Code — no install needed.
 
@@ -26,11 +28,11 @@ Tier 3 (Grep/Read/Glob) and Tier 6 (WebSearch) are built into Claude Code — no
 
 ## Tier 4: Context7 (recommended first add)
 
-Gives Truth Shield access to live, up-to-date documentation for 9,000+ libraries. When Claude claims "useEffect runs before render," Context7 checks the actual React docs — not Claude's training data from months ago.
+Gives Truth Shield access to live, up-to-date documentation for 9,000+ libraries. When Claude claims "useEffect runs before render," Context7 checks the actual React docs.
 
 ### Install
 
-Add to your Claude Code MCP config (`.mcp.json` in your project root or `~/.claude/mcp.json` globally):
+Add to your Claude Code MCP config (`~/.claude/mcp.json` globally or `.mcp.json` in your project root):
 
 ```json
 {
@@ -50,6 +52,37 @@ Restart Claude Code. Truth Shield automatically detects Context7 and uses it for
 - Outdated API signatures ("useState takes a callback" — no, it takes an initial value)
 - Removed features ("bodyParser is bundled with Express" — removed in Express 4)
 - Version-specific behavior ("useId was added in React 16" — it was React 18)
+
+---
+
+## Tier 3.5: DepScope (v3 — package verification)
+
+Checks whether package names actually exist across 19 ecosystems (npm, PyPI, Cargo, Go, Maven, etc.). Prevents slopsquatting — when Claude hallucinates a package name and a user installs malware that squatted that name.
+
+### Install
+
+Add to your MCP config:
+
+```json
+{
+  "mcpServers": {
+    "depscope": {
+      "command": "npx",
+      "args": ["-y", "@nicholasgriffintn/depscope-mcp"]
+    }
+  }
+}
+```
+
+### What it catches
+
+- Hallucinated package names ("Install `react-query-utils`" — doesn't exist, the real one is `@tanstack/react-query`)
+- Typosquatting risks ("Install `lodsah`" — typo of `lodash`, may be malware)
+- Ecosystem confusion ("pip install express" — Express is an npm package, not PyPI)
+
+### Research basis
+
+Based on the [DepScope hallucinations dataset](https://github.com/BAS-More/depscope-hallucinations-dataset) which documents how LLMs fabricate package names across ecosystems.
 
 ---
 
@@ -151,7 +184,7 @@ Graphiti requires a Neo4j database. See the [Graphiti docs](https://github.com/g
 
 ## Tier 2: Knowledge Graph
 
-Structural code analysis — not text search, but actual call graphs, dependency trees, and symbol relationships. When Claude says "function A calls function B," the Knowledge Graph has a definitive answer.
+Structural code analysis — not text search, but actual call graphs, dependency trees, and symbol relationships.
 
 ### Install
 
@@ -178,13 +211,13 @@ Add to your MCP config:
 
 ---
 
-## Tier 7: Multi-model cross-check (advanced)
+## Tier 7: Multi-model cross-check + self-consistency (v3)
 
-Cross-checks claims against a completely different model family. This catches training-data-wide blind spots — errors that every Claude model repeats because they're in the training data.
+Cross-checks claims against different model families AND uses self-consistency sampling. v3 queries multiple models and checks agreement — divergence signals hallucination.
 
 ### Requirements
 
-1. A local LLM proxy running on a known port (e.g., [LiteLLM](https://github.com/BerriAI/litellm), [OpenRouter](https://openrouter.ai/), or any OpenAI-compatible proxy)
+1. A local LLM proxy (e.g., [LiteLLM](https://github.com/BerriAI/litellm), [OpenRouter](https://openrouter.ai/), or any OpenAI-compatible proxy)
 2. Access to at least one non-Anthropic model (GPT-4o, Gemini, Llama, etc.)
 3. The `WebFetch` tool available in your Claude Code session
 
@@ -199,11 +232,45 @@ headers: {"Authorization": "Bearer YOUR_TOKEN"}
 
 If no proxy is running, Tier 7 silently skips (connection refused is handled gracefully).
 
+### v3 upgrade: Self-consistency sampling
+
+v3 queries 3 models instead of 1. If all 3 agree, confidence is high. If they diverge, the claim is flagged as CONFLICTED. This is based on [semantic entropy research](https://github.com/BAS-More/LLM-Hallucination-Detection-Script) (Nature 2024) — divergent outputs from the same prompt indicate hallucination.
+
 ---
 
-## Tier 8: LLM Council (conflict resolution)
+## Tier 8: MiniCheck external fact-checker (v3)
 
-When verification sources disagree — e.g., Context7 says VERIFIED but WebSearch says CONTRADICTED — the LLM Council convenes multiple models to arbitrate. It does NOT fire on every claim, only on genuine conflicts.
+A purpose-built fact-verification model from EMNLP 2024. Unlike general LLMs, MiniCheck was specifically trained to judge whether a claim is supported by a document. It outperforms GPT-4 at fact-checking tasks.
+
+### Install
+
+MiniCheck runs via [Ollama](https://ollama.ai/):
+
+```bash
+# Install Ollama (if not already installed)
+# See https://ollama.ai/ for your platform
+
+# Pull the MiniCheck model
+ollama pull bespoke-minicheck
+```
+
+Ollama runs at `http://localhost:11434` by default. No MCP config needed — Truth Shield calls it directly via WebFetch.
+
+### What it enables
+
+- **Second opinion on verdicts** — if Context7 says VERIFIED, MiniCheck independently confirms against the evidence
+- **Catches confirmation bias** — MiniCheck reads evidence without knowing what Claude claimed, breaking the bias loop
+- **High precision** — trained on fact-checking benchmarks, not general text generation
+
+### Research basis
+
+Based on [MiniCheck](https://github.com/BAS-More/MiniCheck) (EMNLP 2024). See also [UQLM](https://github.com/BAS-More/uqlm) for uncertainty quantification approaches and [LLM_Check](https://github.com/BAS-More/LLM_Check_Hallucination_Detection) for hallucination detection patterns.
+
+---
+
+## Tier 9: Multi-Judge Council (v3, replaces old Tier 8)
+
+When verification sources disagree, the Multi-Judge Council convenes multiple models to arbitrate using the FACTS framework (DeepMind 2024). Uses a 3-judge panel with independent scoring and majority vote — no single model's bias dominates.
 
 ### Install
 
@@ -217,7 +284,49 @@ cp SKILL.md ~/.claude/skills/llm-council.md
 Copy-Item SKILL.md "$env:USERPROFILE\.claude\skills\llm-council.md"
 ```
 
-If the LLM Council skill is not installed, Truth Shield presents both conflicting positions to you directly instead. You resolve the conflict manually.
+If the LLM Council skill is not installed, Truth Shield falls back to multi-model arbitration via the proxy (Tier 7), or presents both positions to you directly.
+
+---
+
+## Stop Hook enforcement (v3)
+
+The enforcement hook is a Claude Code hook that runs OUTSIDE Claude's context window. Even if Claude "forgets" to verify in shield-on mode, the hook catches it.
+
+### Install
+
+1. Copy the hook file:
+
+```bash
+# Mac / Linux
+mkdir -p ~/.claude/hooks
+cp hooks/truth-shield-enforcer.js ~/.claude/hooks/
+
+# Windows (PowerShell)
+New-Item -ItemType Directory -Path "$env:USERPROFILE\.claude\hooks" -Force | Out-Null
+Copy-Item hooks\truth-shield-enforcer.js "$env:USERPROFILE\.claude\hooks\"
+```
+
+2. Add to your `~/.claude/hooks.json`:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "command": "node ~/.claude/hooks/truth-shield-enforcer.js",
+        "description": "Truth Shield enforcement — ensures verification runs in shield-on mode"
+      }
+    ]
+  }
+}
+```
+
+### What it does
+
+- Tracks shield-on/off state in `~/.claude/truth-shield-state.json`
+- On every Stop event, checks if verification tools were used
+- If shield-on is active and no verification occurred, returns non-zero exit to trigger re-verification
+- Deterministic — cannot be overridden by prompt content
 
 ---
 
