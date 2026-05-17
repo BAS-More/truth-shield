@@ -128,6 +128,25 @@ For **Passive mode** (shield on), silently verify and only surface issues:
 - If all claims verify: present the response normally with a small `[shield: all claims verified]` footer
 - If any claims fail: present the response with inline `[unverified]` or `[CONTRADICTED]` markers and corrections at the bottom
 
+For **zero-verified results** (no tools available to verify anything):
+
+```
+## Truth Shield Report
+
+### Claims checked: 4
+### Verified: 0
+### Unverified: 4
+### Contradicted: 0
+
+All 4 claims are UNVERIFIED. No verification tools were available in this session
+(no file access, no Context7, no WebSearch). Truth Shield cannot confirm or deny
+any claims without at least one source to check against.
+
+Tools checked: Grep (unavailable), Context7 (unavailable), WebSearch (unavailable)
+```
+
+Never suppress the report when everything is unverified. A report showing 0/4 verified is honest and useful — it tells the user "I checked nothing, so trust nothing."
+
 
 ---
 
