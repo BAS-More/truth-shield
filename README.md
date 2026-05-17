@@ -13,7 +13,7 @@ Truth Shield is a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 
 - **DepScope package checking** — catches hallucinated package names across 19 ecosystems
 - **MiniCheck fact-checker** — purpose-built verification model (matches GPT-4 on grounding benchmarks)
 - **Multi-judge arbitration** — FACTS-style 3-judge panel resolves conflicts without single-model bias
-- **Stop hook enforcement** — deterministic enforcement layer outside Claude's context window
+- **Always-on enforcement hook (v4)** — deterministic enforcement outside Claude's context window with hook-level MiniCheck and multi-model cross-check
 
 ```
 You: What port does Express default to?
@@ -168,7 +168,7 @@ Install additional MCP servers, models, and hooks to unlock more tiers. Each one
 | **MiniCheck** (Ollama) | External fact-checker — trained specifically for document-claim verification |
 | **Local LLM proxy** | Multi-model cross-check + self-consistency sampling |
 | **LLM Council** (skill) | FACTS-style multi-judge conflict resolution |
-| **Stop hook** (hook) | Deterministic enforcement — ensures verification runs in shield-on mode |
+| **Stop hook v4** (hook) | Always-on enforcement with hook-level MiniCheck and multi-model cross-check |
 
 With all sources connected, Truth Shield checks claims across **11 tiers** (0–9 plus 3.5) — from instant cache lookups to multi-judge arbitration.
 

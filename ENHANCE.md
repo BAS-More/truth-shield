@@ -295,9 +295,16 @@ If the LLM Council skill is not installed, Truth Shield falls back to multi-mode
 
 ---
 
-## Stop Hook enforcement (v3)
+## Stop Hook enforcement (v4 — always-on)
 
-The enforcement hook is a Claude Code hook that runs OUTSIDE Claude's context window. Even if Claude "forgets" to verify in shield-on mode, the hook catches it.
+The enforcement hook is a Claude Code hook that runs OUTSIDE Claude's context window. It checks every response for unverified factual claims and blocks them until verification runs.
+
+v4 changes from v3:
+- **Always-on** — no shield on/off toggle. Every response with factual claims is enforced.
+- **Hook-level MiniCheck** — calls Ollama's bespoke-minicheck to independently verify claims outside Claude's context (breaks confirmation bias).
+- **Hook-level multi-model** — calls 9Router for cross-check with a different model family (catches single-model blind spots).
+- **Graceful degradation** — if MiniCheck or 9Router are unavailable, falls back to blocking (same as v3).
+- **Improved classification** — skips action confirmations ("Done.", "Created X."), better code block detection.
 
 ### Install
 
@@ -324,7 +331,7 @@ Copy-Item hooks\truth-shield-enforcer.js "$env:USERPROFILE\.claude\hooks\"
           {
             "type": "command",
             "command": "node \"$HOME/.claude/hooks/truth-shield-enforcer.js\"",
-            "timeout": 10
+            "timeout": 30
           }
         ]
       }
@@ -333,18 +340,40 @@ Copy-Item hooks\truth-shield-enforcer.js "$env:USERPROFILE\.claude\hooks\"
 }
 ```
 
+> **Note:** The timeout is 30 seconds (not 10) because the hook may call external services (MiniCheck, 9Router). If neither service is running, the hook falls back quickly.
+
 If you already have Stop hooks, add the truth-shield entry to the existing `hooks` array.
+
+### Optional: Install MiniCheck for hook-level verification
+
+MiniCheck allows the hook itself to verify claims, completely outside Claude's context window. This breaks confirmation bias because MiniCheck reads the evidence without knowing what Claude claimed.
+
+```bash
+# Install Ollama (see https://ollama.ai/ for your platform)
+# Then pull the MiniCheck model:
+ollama pull bespoke-minicheck
+```
+
+When Ollama is running, the hook automatically uses MiniCheck. When it's not, the hook gracefully skips it.
+
+### Optional: 9Router for hook-level multi-model cross-check
+
+If 9Router is running at `http://localhost:20128`, the hook can cross-check claims against a different model family (e.g., GPT-4o-mini). Divergence between models signals hallucination.
+
+The hook tries MiniCheck first (purpose-built for fact-checking). If MiniCheck is unavailable, it falls back to multi-model cross-check via 9Router. If neither is available, it blocks unverified responses.
 
 ### What it does
 
+- **Always-on enforcement** — every response with factual claims is checked (no shield on/off gate)
 - **Reads stdin** — async, with 2s timeout (matches Claude Code hook protocol)
-- **Detects shield state** — scans `messages` array (preferred) or transcript JSONL for "shield on"/"shield off"
-- **Classifies responses** — skips pure code, short answers, questions, and already-verified output
+- **Classifies responses** — skips pure code, short answers, questions, action confirmations, and already-verified output
 - **Checks verification** — looks for truth-shield tool calls and verification markers after last user message
+- **Hook-level MiniCheck** — extracts claims, calls Ollama's bespoke-minicheck to verify independently (4s timeout)
+- **Hook-level multi-model** — falls back to 9Router cross-check if MiniCheck unavailable (4s timeout)
 - **Blocks unverified responses** — uses `decision: "block"` JSON output with reason (the proper Stop hook API)
 - **Anti-loop protection** — tracks enforcement per session via lockfile; after one block, subsequent stops pass through
 - **Subagent-safe** — skips enforcement inside subagents (they're tool executions, not user-facing)
-- **Crash-proof** — all errors caught and logged to `~/.claude/_logs/truth-shield-errors.log`; never crashes Claude
+- **Crash-proof** — all errors caught and logged to `~/.claude/_logs/truth-shield-enforcer.log`; never crashes Claude
 - **Deterministic** — cannot be overridden by prompt content
 
 ---
