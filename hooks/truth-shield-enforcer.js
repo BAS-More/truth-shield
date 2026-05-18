@@ -267,6 +267,12 @@ function responseHasFactualClaims(output) {
   // Git output, file listings, command output
   if (/^(commit [a-f0-9]{7,}|diff --git|On branch |Your branch |Changes |Untracked )/m.test(text) && text.length < 500) return false;
 
+  // Code-specific diagnostic/debugging analysis (about the user's code, not world-facts).
+  // These reference specific functions, line numbers, and suggest fixes — not factual claims.
+  const diagPhrases = (text.match(/\b(the issue is|the problem is|the error is|the bug is|should fix|to fix this|to resolve|looking at the error|looking at the trace|looking at the stack|looking at the log)\b/gi) || []).length;
+  const codeRefs = (text.match(/\b(line \d+|on line|function `|method `|variable `|in `[^`]+`|file `[^`]+`)\b/gi) || []).length;
+  if (diagPhrases >= 1 && codeRefs >= 1 && text.length < 500) return false;
+
   return true;
 }
 
@@ -289,9 +295,12 @@ function extractClaims(output) {
     .replace(/`[^`]+`/g, 'CODE');
 
   // Protect abbreviations from sentence splitting
-  const protected_ = textOnly.replace(ABBREVIATIONS, (match) =>
+  let protected_ = textOnly.replace(ABBREVIATIONS, (match) =>
     match.replace(/\.\s/, '·ABBR·')
   );
+
+  // Protect numbered list prefixes ("1. ", "2. ") from sentence splitting
+  protected_ = protected_.replace(/^(\d+)\.\s/gm, '$1·NUM·');
 
   // Split on newlines first, then on sentence boundaries
   const lines = protected_.split(/\n/).map(l => l.trim()).filter(Boolean);
@@ -300,7 +309,7 @@ function extractClaims(output) {
     // Further split lines on sentence boundaries (period/exclamation followed by space+capital)
     const parts = line
       .split(/(?<=[.!])\s+(?=[A-Z])/)
-      .map(s => s.replace(/·ABBR·/g, '. ').trim())
+      .map(s => s.replace(/·ABBR·/g, '. ').replace(/·NUM·/g, '. ').trim())
       .filter(s => s.length > 20 && s.length < 300);
     sentences.push(...parts);
   }
@@ -311,10 +320,39 @@ function extractClaims(output) {
     if (s.endsWith('?')) continue;
     // Skip hedged statements
     if (/\b(maybe|perhaps|might|could|I think|I believe|not sure|possibly|probably)\b/i.test(s)) continue;
-    // Skip meta-statements about what Claude is doing
-    if (/\b(I'll|I will|Let me|Here's|Here is|I've done|I have done|I created|I updated|I deleted|I installed|I removed|I fixed|I added)\b/i.test(s)) continue;
-    // Skip bullet-point action items ("- Fix the bug", "* Update docs")
-    if (/^[-*•]\s/.test(s)) continue;
+    // Skip pure meta-statements (Claude describing its own actions, with no factual payload).
+    // "I'll create the file" → skip. But "I'll note that React 18 uses concurrent rendering" → keep
+    // because the factual claim ("React 18 uses concurrent rendering") is the point.
+    if (/^(I'll|I will|Let me|Here's|Here is|I've done|I have done|I created|I updated|I deleted|I installed|I removed|I fixed|I added)\b/i.test(s)) {
+      // Check if there's a factual payload after a colon, "that", or dash
+      const payloadMatch = s.match(/(?::|—|–|-\s|that\s)(.{20,})/);
+      if (payloadMatch) {
+        // The payload itself might be factual — extract and re-check it
+        const payload = payloadMatch[1].trim();
+        if (!/\b(maybe|perhaps|might|could|I think|I believe|not sure)\b/i.test(payload)) {
+          claims.push(payload);
+        }
+      }
+      continue;
+    }
+    // Skip bullet-point action items ("- Fix the bug", "* Update docs") but NOT factual bullets
+    // ("- Express defaults to port 3000"). Action items start with a verb.
+    if (/^[-*•]\s/.test(s)) {
+      const bulletContent = s.replace(/^[-*•]\s+/, '');
+      // Action-item verbs → skip the bullet entirely
+      if (/^(Fix|Update|Add|Remove|Delete|Install|Create|Set up|Configure|Check|Test|Run|Build|Deploy|Refactor|Move|Rename|Merge|Push|Pull|Revert|Review|Implement|Migrate|Clean|Write)\b/i.test(bulletContent)) continue;
+      // Otherwise treat bullet content as potential claim
+      claims.push(bulletContent);
+      continue;
+    }
+    // Same for numbered list items ("1. Create the schema", "2) Deploy to staging")
+    if (/^\d+[.)]\s/.test(s)) {
+      const numberedContent = s.replace(/^\d+[.)]\s+/, '');
+      if (/^(Fix|Update|Add|Remove|Delete|Install|Create|Set up|Configure|Check|Test|Run|Build|Deploy|Refactor|Move|Rename|Merge|Push|Pull|Revert|Review|Implement|Migrate|Clean|Write)\b/i.test(numberedContent)) continue;
+      // Otherwise treat as potential claim
+      claims.push(numberedContent);
+      continue;
+    }
     // Skip table rows (lines starting and ending with pipes)
     if (/^\|.*\|$/.test(s)) continue;
     // Skip markdown headers
@@ -430,7 +468,7 @@ async function isMiniCheckAvailable() {
 
 // ─── Hook-level MiniCheck verification ────────────────────────────────
 
-async function verifyWithMiniCheck(claims, evidence) {
+async function verifyWithMiniCheck(claims) {
   // Quick availability check first
   const available = await isMiniCheckAvailable();
   if (!available) {
@@ -442,9 +480,10 @@ async function verifyWithMiniCheck(claims, evidence) {
   const timeout = miniCheckWarm ? HTTP_TIMEOUT_WARM_MS : HTTP_TIMEOUT_COLD_MS;
 
   for (const claim of claims) {
-    // Cap evidence to prevent enormous prompts
-    const cappedEvidence = evidence.substring(0, 2000);
-    const prompt = `Document: ${cappedEvidence}\nClaim: ${claim}\nIs the claim supported by the document? Answer only "Yes" or "No".`;
+    // IMPORTANT: Do NOT use the output as the "document" — that's circular
+    // (the output contains the claim, so MiniCheck would always say "Yes").
+    // Instead, ask MiniCheck to judge factual accuracy independently.
+    const prompt = `Document: No reference document available. Use your training knowledge.\nClaim: ${claim}\nIs this claim factually accurate? Answer only "Yes" or "No".`;
 
     const res = await httpPost(MINICHECK_URL, {
       model: MINICHECK_MODEL,
@@ -565,11 +604,19 @@ async function main() {
     // ── Step 4: Hook-level external verification ──────────────────────
     const claims = extractClaims(output);
 
+    // If no extractable claims survived filtering (all hedged, meta, etc.),
+    // there's nothing factual to verify — allow through.
+    if (claims.length === 0) {
+      log(`ALLOW: no extractable claims after filtering [session=${sessionId}]`);
+      safeExit(0);
+      return;
+    }
+
     if (claims.length > 0) {
       let externallyVerified = false;
 
       // Try MiniCheck first (purpose-built for fact-checking)
-      const minicheck = await verifyWithMiniCheck(claims, output);
+      const minicheck = await verifyWithMiniCheck(claims);
       if (minicheck.available) {
         const allSupported = minicheck.results.every(r => r.supported);
         if (allSupported) {
