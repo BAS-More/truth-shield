@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 340" fill="none">
+  <defs>
+    <linearGradient id="bg3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a"/>
+      <stop offset="100%" style="stop-color:#1e293b"/>
+    </linearGradient>
+    <filter id="glow2">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="800" height="340" fill="url(#bg3)" rx="12"/>
+
+  <!-- Title -->
+  <text x="400" y="32" font-family="system-ui, sans-serif" font-size="18" font-weight="700" fill="white" text-anchor="middle">How It Works — Dual-Layer Protection</text>
+
+  <!-- Layer 1: Claude responds -->
+  <rect x="40" y="60" width="180" height="100" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+  <text x="130" y="86" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#e2e8f0" text-anchor="middle">Claude Responds</text>
+  <text x="130" y="108" font-family="monospace" font-size="11" fill="#64748b" text-anchor="middle">"Express defaults</text>
+  <text x="130" y="124" font-family="monospace" font-size="11" fill="#64748b" text-anchor="middle">to port 3000..."</text>
+  <text x="130" y="148" font-family="system-ui, sans-serif" font-size="10" fill="#475569" text-anchor="middle">May contain hallucinations</text>
+
+  <!-- Arrow 1 -->
+  <line x1="220" y1="110" x2="280" y2="110" stroke="#475569" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <!-- Layer 2: Hook (center, highlighted) -->
+  <rect x="285" y="50" width="230" height="120" rx="10" fill="#7c3aed" fill-opacity="0.1" stroke="#7c3aed" stroke-width="2"/>
+  <rect x="285" y="50" width="230" height="28" rx="10" fill="#7c3aed" fill-opacity="0.2"/>
+  <text x="400" y="70" font-family="system-ui, sans-serif" font-size="12" font-weight="700" fill="#a78bfa" text-anchor="middle">ENFORCEMENT HOOK</text>
+  <text x="400" y="96" font-family="system-ui, sans-serif" font-size="11" fill="#c4b5fd" text-anchor="middle">Deterministic gate</text>
+  <text x="400" y="114" font-family="system-ui, sans-serif" font-size="11" fill="#c4b5fd" text-anchor="middle">Outside Claude's context</text>
+  <text x="400" y="132" font-family="system-ui, sans-serif" font-size="11" fill="#c4b5fd" text-anchor="middle">Cannot be prompt-injected</text>
+  <text x="400" y="156" font-family="system-ui, sans-serif" font-size="10" fill="#8b5cf6" text-anchor="middle" font-weight="600">Unverified? → BLOCK</text>
+
+  <!-- Arrow 2 (verified path) -->
+  <line x1="515" y1="110" x2="575" y2="110" stroke="#059669" stroke-width="2" marker-end="url(#arrowgreen)"/>
+  <text x="545" y="100" font-family="system-ui, sans-serif" font-size="10" font-weight="600" fill="#34d399" text-anchor="middle">verified</text>
+  <defs>
+    <marker id="arrowgreen" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#059669"/>
+    </marker>
+  </defs>
+
+  <!-- Layer 3: Verification tiers -->
+  <rect x="580" y="60" width="180" height="100" rx="10" fill="#1e293b" stroke="#059669" stroke-width="1.5"/>
+  <text x="670" y="86" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#34d399" text-anchor="middle">11 Verification Tiers</text>
+  <text x="670" y="108" font-family="system-ui, sans-serif" font-size="10" fill="#64748b" text-anchor="middle">Cache → Memory → Code</text>
+  <text x="670" y="124" font-family="system-ui, sans-serif" font-size="10" fill="#64748b" text-anchor="middle">→ Docs → Web → Models</text>
+  <text x="670" y="140" font-family="system-ui, sans-serif" font-size="10" fill="#64748b" text-anchor="middle">→ MiniCheck → Council</text>
+
+  <!-- Bottom section: The key insight -->
+  <rect x="40" y="195" width="720" height="130" rx="10" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+
+  <!-- Left: Without hook -->
+  <rect x="60" y="210" width="320" height="100" rx="8" fill="#1e293b"/>
+  <text x="220" y="232" font-family="system-ui, sans-serif" font-size="12" font-weight="700" fill="#ef4444" text-anchor="middle">Without Hook</text>
+  <text x="220" y="254" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8" text-anchor="middle">Claude decides whether to verify</text>
+  <text x="220" y="274" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8" text-anchor="middle">Confident = less scrutiny</text>
+  <text x="220" y="296" font-family="monospace" font-size="13" font-weight="700" fill="#ef4444" text-anchor="middle">~68% catch rate</text>
+
+  <!-- vs -->
+  <text x="400" y="266" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="#475569" text-anchor="middle">vs</text>
+
+  <!-- Right: With hook -->
+  <rect x="420" y="210" width="320" height="100" rx="8" fill="#059669" fill-opacity="0.1" stroke="#059669" stroke-width="1"/>
+  <text x="580" y="232" font-family="system-ui, sans-serif" font-size="12" font-weight="700" fill="#34d399" text-anchor="middle">With Hook</text>
+  <text x="580" y="254" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8" text-anchor="middle">Hook enforces verification always</text>
+  <text x="580" y="274" font-family="system-ui, sans-serif" font-size="11" fill="#94a3b8" text-anchor="middle">Confidence has zero influence</text>
+  <text x="580" y="296" font-family="monospace" font-size="13" font-weight="700" fill="#34d399" text-anchor="middle">~83% catch rate (+15 pts)</text>
+</svg>

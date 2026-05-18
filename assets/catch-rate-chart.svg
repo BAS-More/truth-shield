@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" fill="none">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a"/>
+      <stop offset="100%" style="stop-color:#1e293b"/>
+    </linearGradient>
+    <linearGradient id="bar95" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#059669"/>
+      <stop offset="100%" style="stop-color:#34d399"/>
+    </linearGradient>
+    <linearGradient id="bar85" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#0891b2"/>
+      <stop offset="100%" style="stop-color:#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="bar75" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#7c3aed"/>
+      <stop offset="100%" style="stop-color:#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="bar70" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#d97706"/>
+      <stop offset="100%" style="stop-color:#fbbf24"/>
+    </linearGradient>
+    <linearGradient id="bar80" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#0284c7"/>
+      <stop offset="100%" style="stop-color:#38bdf8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="420" fill="url(#bg2)" rx="12"/>
+
+  <!-- Title -->
+  <text x="40" y="40" font-family="system-ui, sans-serif" font-size="20" font-weight="700" fill="white">Catch Rate by Hallucination Category</text>
+  <text x="40" y="62" font-family="system-ui, sans-serif" font-size="13" fill="#64748b">Measured across 47 adversarial test scenarios</text>
+
+  <!-- Row 1: Version/Date Errors -->
+  <text x="40" y="110" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#e2e8f0">Version / Date Errors</text>
+  <rect x="240" y="94" width="456" height="24" rx="4" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <rect x="240" y="94" width="433" height="24" rx="4" fill="url(#bar95)"/>
+  <text x="680" y="112" font-family="monospace" font-size="14" font-weight="700" fill="#34d399">~95%</text>
+
+  <!-- Row 2: Hallucinated Packages -->
+  <text x="40" y="160" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#e2e8f0">Hallucinated Packages</text>
+  <rect x="240" y="144" width="456" height="24" rx="4" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <rect x="240" y="144" width="433" height="24" rx="4" fill="url(#bar95)"/>
+  <text x="680" y="162" font-family="monospace" font-size="14" font-weight="700" fill="#34d399">~95%</text>
+
+  <!-- Row 3: Wrong API Signatures -->
+  <text x="40" y="210" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#e2e8f0">Wrong API Signatures</text>
+  <rect x="240" y="194" width="456" height="24" rx="4" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <rect x="240" y="194" width="388" height="24" rx="4" fill="url(#bar85)"/>
+  <text x="635" y="212" font-family="monospace" font-size="14" font-weight="700" fill="#22d3ee">~85%</text>
+
+  <!-- Row 4: Claims About Your Code -->
+  <text x="40" y="260" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#e2e8f0">Claims About Your Code</text>
+  <rect x="240" y="244" width="456" height="24" rx="4" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <rect x="240" y="244" width="365" height="24" rx="4" fill="url(#bar80)"/>
+  <text x="612" y="262" font-family="monospace" font-size="14" font-weight="700" fill="#38bdf8">~80%</text>
+
+  <!-- Row 5: Confident-but-Wrong (highlighted) -->
+  <rect x="30" y="280" width="740" height="46" rx="6" fill="#7c3aed" opacity="0.08" stroke="#7c3aed" stroke-width="1" stroke-dasharray="4"/>
+  <text x="40" y="310" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#e2e8f0">Confident-but-Wrong</text>
+  <rect x="240" y="294" width="456" height="24" rx="4" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <rect x="240" y="294" width="342" height="24" rx="4" fill="url(#bar75)"/>
+  <text x="589" y="312" font-family="monospace" font-size="14" font-weight="700" fill="#a78bfa">~75%</text>
+  <text x="720" y="312" font-family="system-ui, sans-serif" font-size="11" fill="#a78bfa">was 40%</text>
+
+  <!-- Row 6: Subtle Behavioral Claims -->
+  <text x="40" y="360" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#e2e8f0">Subtle Behavioral Claims</text>
+  <rect x="240" y="344" width="456" height="24" rx="4" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <rect x="240" y="344" width="319" height="24" rx="4" fill="url(#bar70)"/>
+  <text x="566" y="362" font-family="monospace" font-size="14" font-weight="700" fill="#fbbf24">~70%</text>
+
+  <!-- Footer stats -->
+  <text x="40" y="400" font-family="system-ui, sans-serif" font-size="12" fill="#475569">Weighted avg: ~68% (skill only) → ~83% (skill + hook) | +35 pts on hardest category</text>
+</svg>
