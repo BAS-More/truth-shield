@@ -10,91 +10,16 @@ const path = require('path');
 // Read the source for structural tests
 const source = fs.readFileSync(path.join(__dirname, 'truth-shield-enforcer.js'), 'utf8');
 
-// ─── Re-implement testable pure functions ─────────────────────────────
+// ─── Import testable pure functions ───────────────────────────────────
 
-const ABBREVIATIONS = /\b(Dr|Mr|Mrs|Ms|Prof|Sr|Jr|Inc|Ltd|Corp|etc|vs|i\.e|e\.g|U\.S|U\.K|a\.m|p\.m)\.\s/g;
 const MAX_CLAIMS_TO_CHECK = 3;
-const MAX_OUTPUT_BYTES = 32768;
 
-function responseHasFactualClaims(output) {
-  if (!output || typeof output !== 'string') return false;
-  const text = output.trim();
-  if (text.length < 60) return false;
-  if (text.includes('[shield:') || text.includes('Truth Shield Report')) return false;
-  const sentences = text.split(/[.!]\s/);
-  const questionRatio = sentences.filter(s => s.trim().endsWith('?')).length / Math.max(sentences.length, 1);
-  if (questionRatio > 0.7) return false;
-  const codeBlockCount = (text.match(/```/g) || []).length;
-  const nonCodeLength = text.replace(/```[\s\S]*?```/g, '').trim().length;
-  if (codeBlockCount >= 2 && nonCodeLength < 100) return false;
-  const actionPhrases = /^(Done|Created|Updated|Deleted|Installed|Removed|Fixed|Added|Committed|Pushed|Saved|Copied|Moved|Renamed)\b/i;
-  const firstLine = text.split('\n')[0].trim();
-  if (firstLine.length < 120 && actionPhrases.test(firstLine) && text.length < 300) return false;
-  if (/^(Error|TypeError|ReferenceError|SyntaxError|ENOENT|EACCES|EPERM)\b/.test(firstLine)) return false;
-  if (/^(commit [a-f0-9]{7,}|diff --git|On branch |Your branch |Changes |Untracked )/m.test(text) && text.length < 500) return false;
-  return true;
-}
-
-function extractClaims(output) {
-  if (!output) return [];
-  const truncated = output.length > MAX_OUTPUT_BYTES ? output.substring(0, MAX_OUTPUT_BYTES) : output;
-  const textOnly = truncated.replace(/```[\s\S]*?```/g, '').replace(/`[^`]+`/g, 'CODE');
-  const protected_ = textOnly.replace(ABBREVIATIONS, (match) => match.replace(/\.\s/, '·ABBR·'));
-  const lines = protected_.split(/\n/).map(l => l.trim()).filter(Boolean);
-  const sentences = [];
-  for (const line of lines) {
-    const parts = line.split(/(?<=[.!])\s+(?=[A-Z])/).map(s => s.replace(/·ABBR·/g, '. ').trim()).filter(s => s.length > 20 && s.length < 300);
-    sentences.push(...parts);
-  }
-  const claims = [];
-  for (const s of sentences) {
-    if (s.endsWith('?')) continue;
-    if (/\b(maybe|perhaps|might|could|I think|I believe|not sure|possibly|probably)\b/i.test(s)) continue;
-    if (/\b(I'll|I will|Let me|Here's|Here is|I've done|I have done|I created|I updated|I deleted|I installed|I removed|I fixed|I added)\b/i.test(s)) continue;
-    if (/^[-*•]\s/.test(s)) continue;
-    if (/^\|.*\|$/.test(s)) continue;
-    if (/^#{1,6}\s/.test(s)) continue;
-    claims.push(s);
-  }
-  return claims.sort((a, b) => b.length - a.length).slice(0, MAX_CLAIMS_TO_CHECK);
-}
-
-const VERIFICATION_PATTERNS = [
-  'fact_query', 'fact_set', 'fact_invalidate',
-  'verify_claim', 'recall_semantic', 'recall_by_category',
-  'knowledge-graph', 'context7', 'graphiti',
-  'WebSearch',
-  'Truth Shield Report', 'truth-shield',
-  '[shield:', '[VERIFIED', '[CONTRADICTED', '[UNVERIFIED', '[CONFLICTED',
-  'Claims checked:',
-];
-
-function safeStringify(obj) {
-  try { return JSON.stringify(obj); }
-  catch {
-    try {
-      const seen = new WeakSet();
-      return JSON.stringify(obj, (_, v) => {
-        if (typeof v === 'object' && v !== null) { if (seen.has(v)) return '[Circular]'; seen.add(v); }
-        return v;
-      });
-    } catch { return String(obj); }
-  }
-}
-
-function didVerifyInMessages(messages) {
-  if (!Array.isArray(messages)) return false;
-  let lastUserIdx = -1;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === 'user') { lastUserIdx = i; break; }
-  }
-  if (lastUserIdx < 0) return false;
-  for (let i = lastUserIdx + 1; i < messages.length; i++) {
-    const text = safeStringify(messages[i]);
-    if (VERIFICATION_PATTERNS.some(p => text.includes(p))) return true;
-  }
-  return false;
-}
+const {
+  responseHasFactualClaims,
+  extractClaims,
+  didVerifyInMessages,
+  safeStringify
+} = require('./truth-shield-enforcer.js');
 
 // ─── Test runner ──────────────────────────────────────────────────────
 
@@ -237,6 +162,18 @@ test('truncates enormous output', () => {
   const claims = extractClaims(huge);
   // Should not crash, should return some claims
   assert(claims.length > 0 && claims.length <= MAX_CLAIMS_TO_CHECK);
+});
+
+test('strips numbered prefixes from factual claims', () => {
+  const text = '1. React was created by Facebook.';
+  const claims = extractClaims(text);
+  assert(claims.length === 1, `Expected 1 claim, got ${claims.length}`);
+  assertEqual(claims[0], 'React was created by Facebook.');
+});
+
+test('skips numbered action items', () => {
+  const text = '1. Fix the authentication bug.';
+  assertEqual(extractClaims(text).length, 0);
 });
 
 
