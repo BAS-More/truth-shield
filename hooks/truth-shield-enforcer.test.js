@@ -134,6 +134,14 @@ test('strips code blocks before extracting', () => {
   assert(!claims.some(c => c.includes('const x')), 'Should not include code');
 });
 
+test('preserves inline code text without backticks', () => {
+  const text = 'The `useState` hook returns a stateful value and an updater for it.';
+  const claims = extractClaims(text);
+  assert(claims.length === 1, 'Should find 1 claim');
+  assert(!claims[0].includes('CODE'), 'Should not substitute CODE');
+  assertEqual(claims[0], 'The useState hook returns a stateful value and an updater for it.');
+});
+
 test('returns empty for null/empty', () => {
   assertEqual(extractClaims(null).length, 0);
   assertEqual(extractClaims('').length, 0);

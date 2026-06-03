@@ -292,7 +292,7 @@ function extractClaims(output) {
   // Strip code blocks and inline code
   const textOnly = truncated
     .replace(/```[\s\S]*?```/g, '')
-    .replace(/`[^`]+`/g, 'CODE');
+    .replace(/`([^`]+)`/g, '$1');
 
   // Protect abbreviations from sentence splitting
   let protected_ = textOnly.replace(ABBREVIATIONS, (match) =>
