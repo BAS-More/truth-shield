@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "managedBy": "bas-more-project-memory",
+  "repository": "BAS-More/truth-shield",
+  "choice": "enabled",
+  "authorization": "owner-approved-existing-repository-rollout",
+  "policySource": "BAS-More/skills@313901a093244627d08c79b967f8db614aea43f5",
+  "policySha256": "5ea3161f5edceb66d528e472bf744de11f7fe74737df3c875c2173228b72a818",
+  "requiredViews": [
+    "structural",
+    "dependencies",
+    "modules",
+    "database",
+    "processes",
+    "hierarchy",
+    "semantic",
+    "contracts",
+    "workflows"
+  ],
+  "graphReadiness": "requires-repository-validation",
+  "privacy": "local-embeddings-only",
+  "instructions": "Follow POLICY.md; preserve existing tooling; record per-view evidence before marking graph setup complete."
+}
