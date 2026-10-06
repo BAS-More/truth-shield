@@ -40,6 +40,23 @@ const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
 const MINICHECK_URL = `${OLLAMA_HOST}/api/generate`;
 const MINICHECK_MODEL = 'bespoke-minicheck';
 const NROUTER_URL = 'http://localhost:20128/v1/chat/completions';
+
+// ─── Retrieval capability (FAIL-CLOSED GATE) ──────────────────────────
+// Truth Shield has NO source-retrieval implementation. Both external
+// verifiers below can only grade a claim against the checker model's own
+// priors. That is not verification - it is a second opinion from a model
+// with the same blind spots, and it previously produced log lines reading
+// "ALLOW: MiniCheck verified N/N claims" for claims nobody had checked
+// against any source.
+//
+// Until a retriever exists that supplies a real reference document per
+// claim, the enforcer fails CLOSED: no source => not verified.
+//
+// DO NOT flip this to true without implementing retrieval. Doing so
+// re-opens the rubber-stamp. The retriever must supply, per claim:
+// provenance, citation coverage, freshness policy, timeout behaviour and
+// an abstention threshold. Guarded by truth-shield-containment.test.js.
+const RETRIEVAL_AVAILABLE = false;
 const NROUTER_TOKEN = '9router';
 const HTTP_TIMEOUT_COLD_MS = 8000;  // first MiniCheck call (model loading)
 const HTTP_TIMEOUT_WARM_MS = 4000;  // subsequent calls
@@ -466,13 +483,36 @@ async function isMiniCheckAvailable() {
   return false;
 }
 
+// ─── Source retrieval (NOT YET IMPLEMENTED) ───────────────────────────
+// The seam where a real retriever plugs in. It must return an object mapping
+// each claim string to the text of a retrieved reference document, or null if
+// it cannot source them. Returning null is the safe answer: it makes every
+// downstream verifier fail closed.
+//
+// A future implementation has to handle, at minimum: source provenance,
+// citation coverage per claim, a freshness policy, timeout behaviour, and an
+// abstention threshold below which it returns null rather than guessing.
+// Returning a low-confidence document here is worse than returning null - a
+// half-good retriever still yields a confident "verified" stamp.
+async function retrieveSources(_claims) {
+  if (!RETRIEVAL_AVAILABLE) return null;
+  throw new Error('RETRIEVAL_AVAILABLE is true but no retriever is implemented');
+}
+
 // ─── Hook-level MiniCheck verification ────────────────────────────────
 
-async function verifyWithMiniCheck(claims) {
+async function verifyWithMiniCheck(claims, sourceDocuments) {
+  // FAIL-CLOSED: without retrieval there is no reference document to check
+  // against, so MiniCheck can only echo its own priors. Refuse to run rather
+  // than manufacture a "verified" verdict. Costs nothing - no network call.
+  if (!RETRIEVAL_AVAILABLE || !sourceDocuments) {
+    return { available: false, sourced: false, results: [], reason: 'no-retrieval' };
+  }
+
   // Quick availability check first
   const available = await isMiniCheckAvailable();
   if (!available) {
-    return { available: false, results: [] };
+    return { available: false, sourced: false, results: [] };
   }
 
   const results = [];
@@ -480,10 +520,16 @@ async function verifyWithMiniCheck(claims) {
   const timeout = miniCheckWarm ? HTTP_TIMEOUT_WARM_MS : HTTP_TIMEOUT_COLD_MS;
 
   for (const claim of claims) {
-    // IMPORTANT: Do NOT use the output as the "document" — that's circular
-    // (the output contains the claim, so MiniCheck would always say "Yes").
-    // Instead, ask MiniCheck to judge factual accuracy independently.
-    const prompt = `Document: No reference document available. Use your training knowledge.\nClaim: ${claim}\nIs this claim factually accurate? Answer only "Yes" or "No".`;
+    // IMPORTANT: the document must be a RETRIEVED source, never the model's
+    // own output (circular - the output contains the claim, so the checker
+    // always says "Yes") and never a placeholder telling the checker to fall
+    // back on its training knowledge (that is the rubber-stamp this gate
+    // exists to prevent). Unreachable while RETRIEVAL_AVAILABLE is false.
+    const sourceDoc = sourceDocuments[claim];
+    if (!sourceDoc) {
+      return { available: false, sourced: false, results: [], reason: 'no-source-for-claim' };
+    }
+    const prompt = `Document: ${sourceDoc}\nClaim: ${claim}\nIs the claim supported by the document? Answer only "Yes" or "No".`;
 
     const res = await httpPost(MINICHECK_URL, {
       model: MINICHECK_MODEL,
@@ -511,7 +557,14 @@ async function verifyWithMiniCheck(claims) {
 
 // ─── Hook-level multi-model cross-check ───────────────────────────────
 
-async function verifyWithMultiModel(claims) {
+async function verifyWithMultiModel(claims, sourceDocuments) {
+  // FAIL-CLOSED, same reasoning as verifyWithMiniCheck: a panel of models
+  // agreeing from memory is consensus, not verification. Correlated priors
+  // across models make agreement especially misleading.
+  if (!RETRIEVAL_AVAILABLE || !sourceDocuments) {
+    return { available: false, sourced: false, results: [], reason: 'no-retrieval' };
+  }
+
   const claimList = claims.map((c, i) => `${i + 1}. ${c}`).join('\n');
 
   const res = await httpPost(NROUTER_URL, {
@@ -615,10 +668,19 @@ async function main() {
     if (claims.length > 0) {
       let externallyVerified = false;
 
+      // Retrieve a reference document per claim. Returns null while no
+      // retriever is implemented, which forces both verifiers to fail closed.
+      const sourceDocuments = await retrieveSources(claims);
+
       // Try MiniCheck first (purpose-built for fact-checking)
-      const minicheck = await verifyWithMiniCheck(claims);
-      if (minicheck.available) {
-        const allSupported = minicheck.results.every(r => r.supported);
+      const minicheck = await verifyWithMiniCheck(claims, sourceDocuments);
+      // `sourced` is the load-bearing condition, not `available`: a checker
+      // can be reachable and still have had nothing to check against.
+      // Length guard matters too - [].every() is true, so an empty result
+      // set would otherwise read as "all claims supported".
+      if (minicheck.available && minicheck.sourced) {
+        const allSupported = minicheck.results.length === claims.length &&
+                             minicheck.results.every(r => r.supported);
         if (allSupported) {
           log(`ALLOW: MiniCheck verified ${claims.length}/${claims.length} claims [session=${sessionId}]`);
           externallyVerified = true;
@@ -632,9 +694,10 @@ async function main() {
 
       // Fallback: multi-model cross-check via 9Router
       if (!minicheck.available) {
-        const multimodel = await verifyWithMultiModel(claims);
-        if (multimodel.available) {
-          const allAgree = multimodel.results.every(r => r.agrees);
+        const multimodel = await verifyWithMultiModel(claims, sourceDocuments);
+        if (multimodel.available && multimodel.sourced) {
+          const allAgree = multimodel.results.length === claims.length &&
+                           multimodel.results.every(r => r.agrees);
           if (allAgree) {
             log(`ALLOW: multi-model agreed on ${claims.length}/${claims.length} claims [session=${sessionId}]`);
             externallyVerified = true;
@@ -659,11 +722,14 @@ async function main() {
     const decision = {
       decision: 'block',
       reason: [
-        'Truth Shield enforcement: this response contains factual claims but',
-        'no verification was detected. Please run the truth-shield skill to',
-        'verify claims before presenting them. Use the verification tiers',
+        'Truth Shield enforcement: this response contains factual claims that',
+        'were not verified against any retrieved source. Truth Shield has no',
+        'source-retrieval implementation, so its automated checkers cannot',
+        'verify anything - they are disabled rather than allowed to grade',
+        'claims from memory and report the result as verified.',
+        'Verify the claims yourself before presenting them, using the tiers',
         'available (Grep/Read for code, WebSearch for facts, Context7 for',
-        'library docs, etc.).'
+        'library docs), or mark them explicitly as unverified.'
       ].join(' ')
     };
 
